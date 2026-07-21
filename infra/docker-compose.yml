@@ -1,0 +1,68 @@
+version: '3.9'
+
+services:
+
+  # ─── Base de données PostgreSQL ───
+  db:
+    image: postgres:16-alpine
+    container_name: auris_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auris
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - auris_network
+
+  # ─── Backend FastAPI ───
+  backend:
+    build: ../backend
+    container_name: auris_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/auris
+    depends_on:
+      - db
+    networks:
+      - auris_network
+
+  # ─── Frontend React ───
+  frontend:
+    build: ../frontend
+    container_name: auris_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - auris_network
+
+  # ─── Keycloak Auth ───
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: auris_keycloak
+    restart: unless-stopped
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    networks:
+      - auris_network
+
+volumes:
+  postgres_data:
+
+networks:
+  auris_network:
+    driver: bridge
