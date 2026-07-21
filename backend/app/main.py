@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.database import check_db_connection
 
 app = FastAPI(
     title="Auris API",
@@ -18,3 +19,12 @@ app.add_middleware(
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "auris-backend"}
+
+
+@app.get("/health/db")
+def health_check_db():
+    db_ok = check_db_connection()
+    return {
+        "status": "ok" if db_ok else "error",
+        "database": "connected" if db_ok else "unreachable"
+    }
