@@ -4,6 +4,10 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/auris"
+    KEYCLOAK_URL: str = "http://localhost:8080"
+    KEYCLOAK_REALM: str = "auris"
+    KEYCLOAK_CLIENT_ID: str = "auris-backend"
+    KEYCLOAK_CLIENT_SECRET: str = "your-secret"
 
     class Config:
         env_file = ".env"
