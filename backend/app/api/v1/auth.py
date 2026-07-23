@@ -7,20 +7,47 @@ from app.core.security import get_current_user
 
 router = APIRouter(prefix="/api/v1", tags=["auth"])
 
+# Stockage temporaire des consentements (sera remplacé par BDD en SCRUM-79)
+consents_store = {}
+
 @router.post("/consents", status_code=status.HTTP_201_CREATED)
 async def create_consent(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
+    user_id = current_user["id"]
     consent = {
         "id": str(uuid4()),
-        "user_id": current_user["id"],
+        "user_id": user_id,
         "given_at": datetime.utcnow().isoformat(),
         "ip_address": request.client.host,
         "is_active": True
     }
+    consents_store[user_id] = consent
     return {
         "message": "Consentement enregistré avec succès",
         "consent": consent
     }
+
+@router.get("/consents/check", status_code=status.HTTP_200_OK)
+async def check_consent(
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = current_user["id"]
+    consent = consents_store.get(user_id)
+    has_consent = consent is not None and consent.get("is_active", False)
+    return {
+        "has_consent": has_consent,
+        "consent": consent if has_consent else None
+    }
+
+def require_consent(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
+    consent = consents_store.get(user_id)
+    if not consent or not consent.get("is_active", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Consentement RGPD requis avant tout enregistrement"
+        )
+    return consent
