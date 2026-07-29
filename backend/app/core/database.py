@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     KEYCLOAK_REALM: str = "auris"
     KEYCLOAK_CLIENT_ID: str = "auris-backend"
     KEYCLOAK_CLIENT_SECRET: str = "your-secret"
+    OVH_ACCESS_KEY: str = "your-ovh-access-key"
+    OVH_SECRET_KEY: str = "your-ovh-secret-key"
+    OVH_BUCKET_NAME: str = "auris-audio"
+    OVH_ENDPOINT_URL: str = "https://s3.gra.io.cloud.ovh.net"
+    OVH_REGION: str = "gra"
 
     class Config:
         env_file = ".env"

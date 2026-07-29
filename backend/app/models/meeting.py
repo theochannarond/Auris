@@ -12,3 +12,4 @@ class Meeting(Base):
     title = Column(String(255), nullable=True)
     status = Column(String(50), nullable=False, default="created")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    audio_object_key = Column(String(500), nullable=True)
