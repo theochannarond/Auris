@@ -51,7 +51,7 @@ async def upload_meeting_audio(
 
     content = await file.read()
     object_key = f"{meeting_id}/{uuid_lib.uuid4()}-{file.filename}"
-    upload_audio_file(content, object_key, file.content_type)
+    await upload_audio_file(content, object_key, file.content_type)
 
     meeting.audio_object_key = object_key
     db.commit()
