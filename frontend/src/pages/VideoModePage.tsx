@@ -26,7 +26,10 @@ export default function VideoModePage() {
     } catch (err) {
       setError("Une erreur est survenue. Veuillez réessayer.");
     } finally {
-      setLoa      setLoa      setLoa
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{
       display: "flex",
@@ -41,45 +44,60 @@ export default function VideoModePage() {
     }}>
       <h1 style={{ fontSize: "2rem", marginBottom: "8px" }}>Auris</h1>
       <h2 style={{ fontSize: "1.1rem", color: "#6B7280", marginBottom: "32px" }}>
-         ode réunion              </h2>
+        Mode réunion vidéo
+      </h2>
 
       {!meeting ? (
         <>
           <input
             type="text"
-            placeholder="Titre de la réunion            placeholder="Titre de la réunion        > setTitle(e.target.value)}
+            placeholder="Titre de la réunion"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
             style={{
               width: "100%", padding: "12px", borderRadius: "8px",
               border: "1px solid #D1D5DB", marginBottom: "12px",
-              fontSize: "1rem"              fontSiz                  <input
+              fontSize: "1rem"
+            }}
+          />
+          <input
             type="text"
-            placeholder="Lien Google Me             Zoom"
+            placeholder="Lien Google Meet / Teams / Zoom"
             value={meetingLink}
             onChange={e => setMeetingLink(e.target.value)}
             style={{
-                   : "100%", padd                 erRadius: "8px",
+              width: "100%", padding: "12px", borderRadius: "8px",
               border: "1px solid #D1D5DB", marginBottom: "24px",
               fontSize: "1rem"
             }}
           />
           {error && (
-            <p style={{ color: "#B91C1C", marginBottom: "16px", fo            <p style={{ color: "#B91C1C", marginBottom: "16px", fo            <    <button
-            onClick={handleCreate            on        isabled={loading}
-                                   backgroundColor: loading ? "#9CA3AF" : "#2C5F8A",
+            <p style={{ color: "#B91C1C", marginBottom: "16px", fontSize: "0.9rem" }}>
+              {error}
+            </p>
+          )}
+          <button
+            onClick={handleCreateMeeting}
+            disabled={loading}
+            style={{
+              backgroundColor: loading ? "#9CA3AF" : "#2C5F8A",
               color: "white", border: "none",
-              padding: "12p              pRadius: "8px",
+              padding: "12px 48px", borderRadius: "8px",
               fontSize: "1rem", cursor: loading ? "not-allowed" : "pointer"
             }}
           >
             {loading ? "Démarrage..." : "Lancer la réunion"}
           </button>
         </>
-                     div style={{ textAlign: "center" }}>
+      ) : (
+        <div style={{ textAlign: "center" }}>
           <p style={{ fontSize: "1.1rem", color: "#059669", marginBottom: "8px" }}>
             ✓ Le bot Auris a rejoint votre réunion
           </p>
-          <p style={{ color: "#6B7280", fontSize: "          <p style={{ color: "#6B7280", fontSize: "         </p>
-          <p style={{ color: "#       , fontSize: "0.85rem", marginTop: "8px" }}>
+          <p style={{ color: "#6B7280", fontSize: "0.9rem" }}>
+            Statut : {meeting.status}
+          </p>
+          <p style={{ color: "#6B7280", fontSize: "0.85rem", marginTop: "8px" }}>
             ID réunion : {meeting.id}
           </p>
         </div>
