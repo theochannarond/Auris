@@ -3,12 +3,17 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/auris"
-    KEYCLOAK_URL: str = "http://localhost:8080"
-    KEYCLOAK_REALM: str = "auris"
-    KEYCLOAK_CLIENT_ID: str = "auris-backend"
+    DATABASE_URL:         str = "postgresql://user:password@localhost:5432/auris"
+    KEYCLOAK_URL:         str = "http://localhost:8080"
+    KEYCLOAK_REALM:       str = "auris"
+    KEYCLOAK_CLIENT_ID:   str = "auris-backend"
     KEYCLOAK_CLIENT_SECRET: str = "your-secret"
-    VEXA_API_KEY: str = ""
+    VEXA_API_KEY:         str = ""
+    OVH_ACCESS_KEY:       str = "your-ovh-access-key"
+    OVH_SECRET_KEY:       str = "your-ovh-secret-key"
+    OVH_BUCKET_NAME:      str = "auris-audio"
+    OVH_ENDPOINT_URL:     str = "https://s3.gra.io.cloud.ovh.net"
+    OVH_REGION:           str = "gra"
 
     class Config:
         env_file = ".env"
