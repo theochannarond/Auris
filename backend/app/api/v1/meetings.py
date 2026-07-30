@@ -22,7 +22,7 @@ async def create_video_meeting(
     consent: dict = Depends(require_consent)
 ):
     meeting = Meeting(
-        user_id=current_user["id"],
+        owner_id=current_user["id"],
         title=meeting_data.title,
         mode="video",
         status="pending",
