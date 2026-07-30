@@ -10,7 +10,7 @@ class Meeting(Base):
     __tablename__ = "meetings"
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id      = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    owner_id     = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title        = Column(String(255), nullable=False)
     mode         = Column(String(20), nullable=False, default="video")   # "video" | "dictaphone"
     status       = Column(String(20), nullable=False, default="pending") # pending | recording | processing | completed | failed
