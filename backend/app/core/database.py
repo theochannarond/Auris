@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     OVH_ENDPOINT_URL:     str = "https://s3.gra.io.cloud.ovh.net"
     OVH_REGION:           str = "gra"
     VEXA_WEBHOOK_SECRET:  str = "your-vexa-webhook-secret"
+    MISTRAL_API_KEY:      str = ""
+    MISTRAL_API_URL:      str = "https://api.mistral.ai/v1"
+    VOXTRAL_MODEL:        str = "voxtral-mini-latest"
+    VOXTRAL_TIMEOUT_SEC:  float = 300.0
 
     class Config:
         env_file = ".env"
