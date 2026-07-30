@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { useMeetingStatus } from "../hooks/useMeetingStatus";
+import BotStatusNotification from "../components/ui/BotStatusNotification";
 
 export default function VideoModePage() {
   const [meetingLink, setMeetingLink] = useState("");
   const [title, setTitle] = useState("");
   const [meeting, setMeeting] = useState<{id: string; status: string} | null>(null);
   const [loading, setLoading] = useState(false);
+  const { status } = useMeetingStatus(meeting?.id ?? null);
   const [error, setError] = useState("");
 
   const handleCreateMeeting = async () => {
@@ -102,6 +105,7 @@ export default function VideoModePage() {
           </p>
         </div>
       )}
+      {meeting && <BotStatusNotification status={status} />}
     </div>
   );
 }
