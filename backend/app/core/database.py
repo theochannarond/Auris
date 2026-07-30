@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     KEYCLOAK_REALM: str = "auris"
     KEYCLOAK_CLIENT_ID: str = "auris-backend"
     KEYCLOAK_CLIENT_SECRET: str = "your-secret"
+    VEXA_API_KEY: str = ""
 
     class Config:
         env_file = ".env"
