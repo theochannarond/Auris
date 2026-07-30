@@ -6,6 +6,7 @@ from app.core.database import Base
 from app.models.user import User
 from app.models.consent import Consent
 from app.models.meeting import Meeting
+from app.models.audio_file import AudioFile
 
 config = context.config
 if config.config_file_name is not None:
