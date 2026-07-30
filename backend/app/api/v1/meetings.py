@@ -13,18 +13,21 @@ router = APIRouter(prefix="/api/v1", tags=["meetings"])
 
 @router.post("/meetings", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
 async def create_meeting(
-    payload: MeetingCreate,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    payload:      MeetingCreate,
+    db:           Session = Depends(get_db),
+    current_user: dict    = Depends(get_current_user),
+    consent:      dict    = Depends(require_consent)
 ):
     user = db.query(User).filter(User.keycloak_id == current_user["id"]).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Utilisateur non trouvé en base"
-        )
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé en base")
 
-    meeting = Meeting(owner_id=user.id, title=payload.title)
+    meeting = Meeting(
+        owner_id = user.id,
+        title    = payload.title,
+        mode     = "dictaphone",
+        status   = "pending"
+    )
     db.add(meeting)
     db.commit()
     db.refresh(meeting)
