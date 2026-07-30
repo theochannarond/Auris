@@ -5,11 +5,12 @@ from app.core.security import get_current_user
 from app.api.v1.auth import require_consent
 from app.models.user import User
 from app.models.meeting import Meeting
-from app.schemas.meeting import MeetingCreate, MeetingResponse
+from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate
 from app.services import vexa_service
-from app.services.storage import upload_audio_file
+from app.services.storage_service import upload_audio_file
 from uuid import UUID
 import uuid as uuid_lib
+
 
 router = APIRouter(prefix="/api/v1", tags=["meetings"])
 
@@ -93,4 +94,33 @@ async def create_video_meeting(
             meeting_link = meeting_data.meeting_link
         )
 
+    return meeting
+
+
+@router.put("/meetings/{meeting_id}/status", response_model=MeetingResponse)
+async def update_meeting_status(
+    meeting_id:    UUID,
+    payload:       MeetingStatusUpdate,
+    db:            Session = Depends(get_db),
+    current_user:  dict    = Depends(get_current_user)
+):
+    user = db.query(User).filter(User.keycloak_id == current_user["id"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé en base")
+
+    meeting = db.query(Meeting).filter(
+        Meeting.id == meeting_id,
+        Meeting.owner_id == user.id,
+        Meeting.deleted_at == None
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Réunion non trouvée")
+
+    valid_statuses = ["pending", "recording", "processing", "completed", "failed"]
+    if payload.status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Statut invalide. Valeurs acceptées : {valid_statuses}")
+
+    meeting.status = payload.status
+    db.commit()
+    db.refresh(meeting)
     return meeting

@@ -1,4 +1,14 @@
-import { useAudioRecorder } from "../../hooks/useAudioRecorder";
+interface DictaphoneProps {
+  isRecording: boolean;
+  isPaused: boolean;
+  duration: number;
+  audioBlob: Blob | null;
+  onStart: () => void;
+  onStop: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onReset: () => void;
+}
 
 function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
@@ -6,31 +16,27 @@ function formatDuration(seconds: number): string {
   return `${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
 
-export default function Dictaphone() {
-  const {
-    isRecording,
-    isPaused,
-    duration,
-    audioBlob,
-    startRecording,
-    stopRecording,
-    pauseRecording,
-    resumeRecording,
-    resetRecording,
-  } = useAudioRecorder();
-
+export default function Dictaphone({
+  isRecording,
+  isPaused,
+  duration,
+  audioBlob,
+  onStart,
+  onStop,
+  onPause,
+  onResume,
+  onReset,
+}: DictaphoneProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "24px",
-        fontFamily: "Arial, sans-serif",
-        padding: "32px",
-      }}
-    >
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "24px",
+      fontFamily: "Arial, sans-serif",
+      padding: "32px",
+    }}>
       <div style={{ fontSize: "2.5rem", fontVariantNumeric: "tabular-nums" }}>
         {formatDuration(duration)}
       </div>
@@ -46,9 +52,9 @@ export default function Dictaphone() {
       </div>
 
       <div style={{ display: "flex", gap: "16px" }}>
-        {!isRecording && (
+        {!isRecording && !audioBlob && (
           <button
-            onClick={startRecording}
+            onClick={onStart}
             style={{
               backgroundColor: "#2C5F8A",
               color: "white",
@@ -66,7 +72,7 @@ export default function Dictaphone() {
         {isRecording && (
           <>
             <button
-              onClick={isPaused ? resumeRecording : pauseRecording}
+              onClick={isPaused ? onResume : onPause}
               style={{
                 backgroundColor: "#9CA3AF",
                 color: "white",
@@ -81,7 +87,7 @@ export default function Dictaphone() {
             </button>
 
             <button
-              onClick={stopRecording}
+              onClick={onStop}
               style={{
                 backgroundColor: "#B91C1C",
                 color: "white",
@@ -95,23 +101,6 @@ export default function Dictaphone() {
               Arrêter
             </button>
           </>
-        )}
-
-        {!isRecording && audioBlob && (
-          <button
-            onClick={resetRecording}
-            style={{
-              backgroundColor: "transparent",
-              color: "#6B7280",
-              border: "1px solid #6B7280",
-              padding: "12px 32px",
-              borderRadius: "8px",
-              fontSize: "1rem",
-              cursor: "pointer",
-            }}
-          >
-            Recommencer
-          </button>
         )}
       </div>
     </div>
