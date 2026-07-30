@@ -5,6 +5,7 @@ from app.core.security import get_current_user
 from app.api.v1.auth import require_consent
 from app.models.user import User
 from app.models.meeting import Meeting
+from app.models.audio_file import AudioFile
 from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate, MeetingStatusResponse
 from app.services import vexa_service
 from app.services.storage_service import upload_audio_file
@@ -59,7 +60,14 @@ async def upload_meeting_audio(
     object_key = f"{meeting_id}/{uuid_lib.uuid4()}-{file.filename}"
     await upload_audio_file(content, object_key, file.content_type)
 
-    meeting.audio_object_key = object_key
+    # La clé OVH est tracée dans audio_files — c'est elle que la transcription ira chercher
+    audio_file = AudioFile(
+        meeting_id      = meeting.id,
+        storage_key     = object_key,
+        file_size_bytes = len(content),
+        mime_type       = file.content_type or "audio/wav"
+    )
+    db.add(audio_file)
     db.commit()
     db.refresh(meeting)
     return meeting
