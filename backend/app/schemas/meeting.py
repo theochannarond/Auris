@@ -5,7 +5,7 @@ from typing import Optional
 
 
 class MeetingCreate(BaseModel):
-    title: str
+    title:        str
     meeting_link: Optional[str] = None
 
 
