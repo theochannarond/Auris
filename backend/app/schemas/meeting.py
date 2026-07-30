@@ -11,7 +11,7 @@ class MeetingCreate(BaseModel):
 
 class MeetingResponse(BaseModel):
     id:           UUID
-    user_id:      UUID
+    owner_id:     UUID
     title:        str
     mode:         str
     status:       str
