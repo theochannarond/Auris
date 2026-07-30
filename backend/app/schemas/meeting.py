@@ -24,3 +24,7 @@ class MeetingResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MeetingStatusUpdate(BaseModel):
+    status: str
