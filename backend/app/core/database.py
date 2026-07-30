@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     OVH_BUCKET_NAME:      str = "auris-audio"
     OVH_ENDPOINT_URL:     str = "https://s3.gra.io.cloud.ovh.net"
     OVH_REGION:           str = "gra"
+    VEXA_WEBHOOK_SECRET:  str = "your-vexa-webhook-secret"
 
     class Config:
         env_file = ".env"
