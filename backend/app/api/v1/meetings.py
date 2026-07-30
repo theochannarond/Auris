@@ -5,7 +5,7 @@ from app.core.security import get_current_user
 from app.api.v1.auth import require_consent
 from app.models.user import User
 from app.models.meeting import Meeting
-from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate
+from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate, MeetingStatusResponse
 from app.services import vexa_service
 from app.services.storage_service import upload_audio_file
 from uuid import UUID
@@ -123,4 +123,25 @@ async def update_meeting_status(
     meeting.status = payload.status
     db.commit()
     db.refresh(meeting)
+    return meeting
+
+
+@router.get("/meetings/{meeting_id}/status", response_model=MeetingStatusResponse)
+async def get_meeting_status(
+    meeting_id:   UUID,
+    db:           Session = Depends(get_db),
+    current_user: dict    = Depends(get_current_user)
+):
+    user = db.query(User).filter(User.keycloak_id == current_user["id"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé en base")
+
+    meeting = db.query(Meeting).filter(
+        Meeting.id       == meeting_id,
+        Meeting.owner_id == user.id,
+        Meeting.deleted_at == None
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Réunion non trouvée")
+
     return meeting
