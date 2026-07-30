@@ -88,13 +88,9 @@ async def create_video_meeting(
     db.refresh(meeting)
 
     if meeting_data.meeting_link:
-        vexa_response = await vexa_service.spawn_bot(
+        await vexa_service.spawn_bot(
             meeting_id   = str(meeting.id),
             meeting_link = meeting_data.meeting_link
         )
-        if vexa_response.get("status") != "error":
-            meeting.status = "recording"
-            db.commit()
-            db.refresh(meeting)
 
     return meeting
