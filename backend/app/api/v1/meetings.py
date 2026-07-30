@@ -8,6 +8,7 @@ from app.schemas.meeting import MeetingCreate, MeetingResponse
 from uuid import UUID
 import uuid as uuid_lib
 from app.services.storage import upload_audio_file
+from app.api.v1.auth import require_consent
 
 router = APIRouter(prefix="/api/v1", tags=["meetings"])
 

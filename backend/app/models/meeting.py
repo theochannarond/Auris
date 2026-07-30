@@ -1,11 +1,11 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy import Column, String, DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
 from app.core.database import Base
 
 class Meeting(Base):
-    tablename = "meetings"
+    __tablename__ = "meetings"
 
     id           = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     owner_id     = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
