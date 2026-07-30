@@ -7,7 +7,7 @@ from app.models.user import User
 from app.models.meeting import Meeting
 from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate
 from app.services import vexa_service
-from app.services.storage import upload_audio_file
+from app.services.storage_service import upload_audio_file
 from uuid import UUID
 import uuid as uuid_lib
 
