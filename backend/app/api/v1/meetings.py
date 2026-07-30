@@ -2,16 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.api.v1.auth import require_consent
 from app.models.user import User
 from app.models.meeting import Meeting
 from app.schemas.meeting import MeetingCreate, MeetingResponse
+from app.services import vexa_service
+from app.services.storage import upload_audio_file
 from uuid import UUID
 import uuid as uuid_lib
-from app.services.storage import upload_audio_file
-from app.api.v1.auth import require_consent
 
 router = APIRouter(prefix="/api/v1", tags=["meetings"])
 
+
+# ─── Dictaphone — créer une réunion ───
 @router.post("/meetings", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
 async def create_meeting(
     payload:      MeetingCreate,
@@ -34,12 +37,14 @@ async def create_meeting(
     db.refresh(meeting)
     return meeting
 
+
+# ─── Dictaphone — upload audio ───
 @router.post("/meetings/{meeting_id}/audio", response_model=MeetingResponse)
 async def upload_meeting_audio(
-    meeting_id: UUID,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    meeting_id:   UUID,
+    file:         UploadFile = File(...),
+    db:           Session = Depends(get_db),
+    current_user: dict    = Depends(get_current_user)
 ):
     user = db.query(User).filter(User.keycloak_id == current_user["id"]).first()
     if not user:
@@ -56,4 +61,40 @@ async def upload_meeting_audio(
     meeting.audio_object_key = object_key
     db.commit()
     db.refresh(meeting)
+    return meeting
+
+
+# ─── Vidéo — créer une réunion avec bot Vexa ───
+@router.post("/meetings/video", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
+async def create_video_meeting(
+    meeting_data: MeetingCreate,
+    db:           Session = Depends(get_db),
+    current_user: dict    = Depends(get_current_user),
+    consent:      dict    = Depends(require_consent)
+):
+    user = db.query(User).filter(User.keycloak_id == current_user["id"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé en base")
+
+    meeting = Meeting(
+        owner_id     = user.id,
+        title        = meeting_data.title,
+        mode         = "video",
+        status       = "pending",
+        meeting_link = meeting_data.meeting_link
+    )
+    db.add(meeting)
+    db.commit()
+    db.refresh(meeting)
+
+    if meeting_data.meeting_link:
+        vexa_response = await vexa_service.spawn_bot(
+            meeting_id   = str(meeting.id),
+            meeting_link = meeting_data.meeting_link
+        )
+        if vexa_response.get("status") != "error":
+            meeting.status = "recording"
+            db.commit()
+            db.refresh(meeting)
+
     return meeting

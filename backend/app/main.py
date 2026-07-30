@@ -4,7 +4,6 @@ from app.core.database import check_db_connection
 from app.api.v1.auth import router as auth_router
 from app.api.v1.meetings import router as meetings_router
 
-
 app = FastAPI(
     title="Auris API",
     description="Assistant de réunion intelligent — API REST",
@@ -18,6 +17,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 app.include_router(auth_router)
 app.include_router(meetings_router)
 
