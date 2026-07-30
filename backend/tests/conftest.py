@@ -6,6 +6,7 @@ from app.models.user import User
 from app.models.consent import Consent
 from app.models.meeting import Meeting
 from app.models.audio_file import AudioFile
+from app.models.transcription import Transcription
 import uuid
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
@@ -52,3 +53,30 @@ def test_meeting(db, test_user):
     db.commit()
     db.refresh(meeting)
     return meeting
+
+@pytest.fixture
+def test_audio_file(db, test_meeting):
+    audio_file = AudioFile(
+        id=uuid.uuid4(),
+        meeting_id=test_meeting.id,
+        storage_key=f"{test_meeting.id}/recording.wav",
+        file_size_bytes=1024,
+        mime_type="audio/wav"
+    )
+    db.add(audio_file)
+    db.commit()
+    db.refresh(audio_file)
+    return audio_file
+
+@pytest.fixture
+def test_transcription(db, test_meeting, test_audio_file):
+    transcription = Transcription(
+        id=uuid.uuid4(),
+        meeting_id=test_meeting.id,
+        audio_file_id=test_audio_file.id,
+        status="pending"
+    )
+    db.add(transcription)
+    db.commit()
+    db.refresh(transcription)
+    return transcription
