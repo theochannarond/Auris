@@ -7,7 +7,6 @@ interface DictaphoneProps {
   onStop: () => void;
   onPause: () => void;
   onResume: () => void;
-  onReset: () => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -25,7 +24,6 @@ export default function Dictaphone({
   onStop,
   onPause,
   onResume,
-  onReset,
 }: DictaphoneProps) {
   return (
     <div style={{

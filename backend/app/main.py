@@ -4,6 +4,7 @@ from app.core.database import check_db_connection
 from app.api.v1.auth import router as auth_router
 from app.api.v1.meetings import router as meetings_router
 from app.api.v1.webhooks import router as webhooks_router
+from app.api.v1.transcriptions import router as transcriptions_router
 
 
 app = FastAPI(
@@ -23,6 +24,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(meetings_router)
 app.include_router(webhooks_router)
+app.include_router(transcriptions_router)
 
 @app.get("/health")
 def health_check():

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
+import { useTranscriptionStatus } from "../hooks/useTranscriptionStatus";
 import Dictaphone from "../components/ui/Dictaphone";
+import TranscriptionProgress from "../components/ui/TranscriptionProgress";
 
 function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
@@ -22,9 +24,13 @@ export default function DictaphonePage() {
   } = useAudioRecorder();
 
   const [meetingId, setMeetingId] = useState<string | null>(null);
+  const [transcriptionId, setTranscriptionId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
   const [error, setError] = useState("");
+
+  const { status: transcriptionStatus, processingMs, errorMessage } =
+    useTranscriptionStatus(transcriptionId);
 
   const handleStart = async () => {
     setError("");
@@ -72,6 +78,16 @@ export default function DictaphonePage() {
         body: JSON.stringify({ status: "processing" })
       });
 
+      // 5. Déclencher la transcription — la réponse 202 porte l'id à suivre
+      const transcriptionRes = await fetch("/api/v1/transcriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meeting_id: meetingId })
+      });
+      if (!transcriptionRes.ok) throw new Error("Erreur au lancement de la transcription");
+      const transcription = await transcriptionRes.json();
+      setTranscriptionId(transcription.id);
+
       setUploaded(true);
     } catch {
       setError("Erreur lors de l'envoi de l'enregistrement.");
@@ -105,7 +121,6 @@ export default function DictaphonePage() {
         onStop={stopRecording}
         onPause={pauseRecording}
         onResume={resumeRecording}
-        onReset={resetRecording}
       />
 
       {/* Preview audio — affiché après arrêt */}
@@ -173,11 +188,13 @@ export default function DictaphonePage() {
           <p style={{ color: "#0A4A25", fontWeight: "500", fontSize: "1.1rem" }}>
             ✓ Enregistrement envoyé avec succès
           </p>
-          <p style={{ color: "#0A4A25", fontSize: "0.9rem", marginTop: "8px" }}>
-            La transcription va démarrer automatiquement.
-          </p>
           <button
-            onClick={() => { resetRecording(); setUploaded(false); setMeetingId(null); }}
+            onClick={() => {
+              resetRecording();
+              setUploaded(false);
+              setMeetingId(null);
+              setTranscriptionId(null);
+            }}
             style={{
               marginTop: "16px", padding: "10px 24px",
               borderRadius: "8px", border: "none",
@@ -188,6 +205,15 @@ export default function DictaphonePage() {
             Nouvelle réunion
           </button>
         </div>
+      )}
+
+      {/* Progression de la transcription — polling tant que le statut n'est pas terminal */}
+      {uploaded && (
+        <TranscriptionProgress
+          status={transcriptionStatus}
+          processingMs={processingMs}
+          errorMessage={errorMessage}
+        />
       )}
 
       {/* Erreur */}
