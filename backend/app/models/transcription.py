@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, DateTime, Integer, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy import ForeignKey
 from datetime import datetime
 import uuid
@@ -13,6 +13,7 @@ class Transcription(Base):
     audio_file_id = Column(UUID(as_uuid=True), ForeignKey("audio_files.id", ondelete="SET NULL"), nullable=True)
     status        = Column(String(20), nullable=False, default="pending")  # pending | processing | completed | failed
     raw_text      = Column(Text, nullable=True)                            # texte brut renvoyé par Voxtral
+    diarization   = Column(JSONB, nullable=True)  # labels locuteurs + timestamps Voxtral
     language      = Column(String(10), nullable=True)                      # code langue détecté ("fr", "en"…)
     model         = Column(String(50), nullable=True)                      # modèle Voxtral utilisé
     processing_ms = Column(Integer, nullable=True)                         # durée de traitement Voxtral en ms
