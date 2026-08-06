@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useMeetings } from "../hooks/useMeetings";
 import MeetingCard from "../components/ui/MeetingCard";
 
@@ -44,7 +45,13 @@ export default function DashboardPage() {
       {!loading && !error && meetings.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {meetings.map((meeting) => (
-            <MeetingCard key={meeting.id} meeting={meeting} />
+            <Link
+              key={meeting.id}
+              to={`/meetings/${meeting.id}`}
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <MeetingCard meeting={meeting} />
+            </Link>
           ))}
         </div>
       )}
