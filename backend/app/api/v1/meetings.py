@@ -7,7 +7,9 @@ from app.models.user import User
 from app.models.meeting import Meeting
 from app.models.audio_file import AudioFile
 from app.models.summary import Summary
-from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate, MeetingStatusResponse, MeetingListItem
+from app.models.transcription import Transcription
+from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate, MeetingStatusResponse, MeetingListItem, MeetingDetailResponse, MeetingTranscriptionDetail
+from app.schemas.summary import SummaryResponse
 from app.services import vexa_service
 from app.services.storage_service import upload_audio_file
 from typing import List
@@ -58,6 +60,52 @@ async def list_meetings(
             tone         = summary.tone  if summary else None
         ))
     return items
+
+
+# ─── Dashboard — détail d'une réunion ───
+@router.get("/meetings/{meeting_id}", response_model=MeetingDetailResponse)
+async def get_meeting_detail(
+    meeting_id:   UUID,
+    db:           Session = Depends(get_db),
+    current_user: dict    = Depends(get_current_user)
+):
+    user = db.query(User).filter(User.keycloak_id == current_user["id"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé en base")
+
+    # Le filtre sur owner_id évite qu'un utilisateur lise la réunion d'un autre en devinant l'UUID
+    meeting = db.query(Meeting).filter(
+        Meeting.id         == meeting_id,
+        Meeting.owner_id   == user.id,
+        Meeting.deleted_at == None
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Réunion non trouvée")
+
+    # Rien ne contraint l'unicité en base : on retient la plus récente
+    transcription = db.query(Transcription).filter(
+        Transcription.meeting_id == meeting.id,
+        Transcription.deleted_at == None
+    ).order_by(Transcription.created_at.desc()).first()
+
+    summary = db.query(Summary).filter(
+        Summary.meeting_id == meeting.id,
+        Summary.deleted_at == None
+    ).order_by(Summary.created_at.desc()).first()
+
+    return MeetingDetailResponse(
+        id            = meeting.id,
+        title         = meeting.title,
+        mode          = meeting.mode,
+        status        = meeting.status,
+        meeting_link  = meeting.meeting_link,
+        started_at    = meeting.started_at,
+        ended_at      = meeting.ended_at,
+        duration_sec  = meeting.duration_sec,
+        created_at    = meeting.created_at,
+        transcription = MeetingTranscriptionDetail.model_validate(transcription) if transcription else None,
+        summary       = SummaryResponse.model_validate(summary) if summary else None
+    )
 
 
 # ─── Dictaphone — créer une réunion ───
