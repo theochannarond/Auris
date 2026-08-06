@@ -29,10 +29,10 @@ async def generate_summary(transcription_text: str) -> dict:
 - "content" : résumé complet de la réunion en français (paragraphe narratif)
 - "decisions" : liste des décisions prises (liste de strings, vide si aucune)
 - "action_items" : liste des actions à réaliser avec responsable si mentionné (liste de strings)
-- "tone" : ton de la réunion ("formal", "informal" ou "technical")
-- "theme" : thème principal de la réunion (string court, ex: "Revue de sprint", "Réunion client")
+- "tone" : ton de la réunion — DOIT être exactement l'une de ces valeurs : "formal", "informal", "technical"
+- "theme" : thème principal de la réunion (string court et précis, ex: "Revue de sprint", "Réunion client", "Point chantier", "Réunion de direction")
 
-Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.
+Réponds UNIQUEMENT avec le JSON, sans texte avant ou après, sans balises markdown.
 
 TRANSCRIPTION :
 {transcription_text}"""
