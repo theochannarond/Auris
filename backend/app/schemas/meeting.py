@@ -26,6 +26,21 @@ class MeetingResponse(BaseModel):
         from_attributes = True
 
 
+class MeetingListItem(BaseModel):
+    """Réunion telle qu'affichée sur une carte du dashboard."""
+    id:           UUID
+    title:        str
+    mode:         str
+    status:       str
+    duration_sec: Optional[int] = None
+    created_at:   datetime
+    theme:        Optional[str] = None   # vient de summaries
+    tone:         Optional[str] = None   # vient de summaries
+
+    class Config:
+        from_attributes = True
+
+
 class MeetingStatusUpdate(BaseModel):
     status: str
 

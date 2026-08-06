@@ -6,14 +6,58 @@ from app.api.v1.auth import require_consent
 from app.models.user import User
 from app.models.meeting import Meeting
 from app.models.audio_file import AudioFile
-from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate, MeetingStatusResponse
+from app.models.summary import Summary
+from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate, MeetingStatusResponse, MeetingListItem
 from app.services import vexa_service
 from app.services.storage_service import upload_audio_file
+from typing import List
 from uuid import UUID
 import uuid as uuid_lib
 
 
 router = APIRouter(prefix="/api/v1", tags=["meetings"])
+
+
+# ─── Dashboard — historique des réunions de l'utilisateur ───
+@router.get("/meetings", response_model=List[MeetingListItem])
+async def list_meetings(
+    db:           Session = Depends(get_db),
+    current_user: dict    = Depends(get_current_user)
+):
+    user = db.query(User).filter(User.keycloak_id == current_user["id"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé en base")
+
+    # owner_id vient du sub du JWT — un utilisateur ne voit jamais les réunions d'un autre
+    meetings = db.query(Meeting).filter(
+        Meeting.owner_id   == user.id,
+        Meeting.deleted_at == None
+    ).order_by(Meeting.created_at.desc()).all()
+
+    if not meetings:
+        return []
+
+    # Thème et ton vivent dans summaries : une seule requête groupée plutôt qu'une par réunion
+    summaries = db.query(Summary).filter(
+        Summary.meeting_id.in_([m.id for m in meetings]),
+        Summary.deleted_at == None
+    ).order_by(Summary.created_at.asc()).all()
+    summary_by_meeting = {s.meeting_id: s for s in summaries}  # si plusieurs, le plus récent gagne
+
+    items = []
+    for meeting in meetings:
+        summary = summary_by_meeting.get(meeting.id)
+        items.append(MeetingListItem(
+            id           = meeting.id,
+            title        = meeting.title,
+            mode         = meeting.mode,
+            status       = meeting.status,
+            duration_sec = meeting.duration_sec,
+            created_at   = meeting.created_at,
+            theme        = summary.theme if summary else None,
+            tone         = summary.tone  if summary else None
+        ))
+    return items
 
 
 # ─── Dictaphone — créer une réunion ───
