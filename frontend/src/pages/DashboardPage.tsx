@@ -1,4 +1,5 @@
 import { useMeetings } from "../hooks/useMeetings";
+import MeetingCard from "../components/ui/MeetingCard";
 
 export default function DashboardPage() {
   const { meetings, loading, error } = useMeetings();
@@ -43,18 +44,7 @@ export default function DashboardPage() {
       {!loading && !error && meetings.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {meetings.map((meeting) => (
-            /* Affichage minimal — remplacé par le composant carte au ticket suivant */
-            <div
-              key={meeting.id}
-              style={{
-                padding: "16px 20px",
-                border: "1px solid #E5E7EB",
-                borderRadius: "12px",
-                color: "#374151"
-              }}
-            >
-              {meeting.title}
-            </div>
+            <MeetingCard key={meeting.id} meeting={meeting} />
           ))}
         </div>
       )}
