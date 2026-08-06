@@ -8,6 +8,7 @@ from app.models.consent import Consent
 from app.models.meeting import Meeting
 from app.models.audio_file import AudioFile
 from app.models.transcription import Transcription
+from app.models.summary import Summary
 
 config = context.config
 if config.config_file_name is not None:
