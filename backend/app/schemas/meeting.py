@@ -28,3 +28,12 @@ class MeetingResponse(BaseModel):
 
 class MeetingStatusUpdate(BaseModel):
     status: str
+
+
+class MeetingStatusResponse(BaseModel):
+    """Réponse allégée pour le polling de statut côté React."""
+    id:     UUID
+    status: str
+
+    class Config:
+        from_attributes = True
