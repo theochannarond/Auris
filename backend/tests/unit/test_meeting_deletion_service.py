@@ -1,10 +1,14 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.models.meeting import Meeting
 from app.models.audio_file import AudioFile
 from app.models.transcription import Transcription
 from app.models.summary import Summary
-from app.services.meeting_deletion_service import soft_delete_meeting
+from app.services.meeting_deletion_service import (
+    soft_delete_meeting,
+    purge_expired_meetings,
+    _subtract_months,
+)
 import uuid
 
 
@@ -117,3 +121,73 @@ def test_other_meetings_are_untouched(db, test_user, test_meeting, test_audio_fi
 
     assert survivor.deleted_at       is None
     assert survivor_audio.deleted_at is None
+
+
+# ─── Purge définitive après la période de conservation légale ───
+
+def test_subtract_months_crosses_the_year(db):
+    """Le recul se fait en mois calendaires, pas en paquets de 30 jours"""
+    assert _subtract_months(datetime(2027, 3, 10), 12) == datetime(2026, 3, 10)
+    assert _subtract_months(datetime(2026, 1, 15), 3)  == datetime(2025, 10, 15)
+
+
+def test_subtract_months_clamps_to_end_of_month(db):
+    """Un quantième qui n'existe pas dans le mois cible est ramené au dernier jour"""
+    # 31 mars moins 1 mois : le 31 février n'existe pas
+    assert _subtract_months(datetime(2027, 3, 31), 1) == datetime(2027, 2, 28)
+
+
+def test_purge_removes_meetings_past_retention(db, test_meeting, test_audio_file, test_transcription, test_summary):
+    """Une réunion supprimée il y a plus de 12 mois quitte définitivement la base"""
+    long_ago = datetime.utcnow() - timedelta(days=400)
+    test_meeting.deleted_at = long_ago
+    for row in (test_audio_file, test_transcription, test_summary):
+        row.deleted_at = long_ago
+    db.commit()
+
+    # Relevés avant la purge : une fois les lignes effacées, lire un attribut
+    # de ces objets déclencherait un rechargement sur une ligne disparue
+    meeting_id, audio_id  = test_meeting.id, test_audio_file.id
+    transcription_id      = test_transcription.id
+    summary_id            = test_summary.id
+
+    purged = purge_expired_meetings(db)
+
+    assert purged == 1
+    assert db.query(Meeting).filter(Meeting.id == meeting_id).first() is None
+    # La grappe entière disparaît, pas seulement la réunion
+    assert db.query(AudioFile).filter(AudioFile.id == audio_id).first() is None
+    assert db.query(Transcription).filter(Transcription.id == transcription_id).first() is None
+    assert db.query(Summary).filter(Summary.id == summary_id).first() is None
+
+
+def test_purge_keeps_recent_deletions(db, test_meeting):
+    """Une réunion supprimée le mois dernier est encore dans son délai"""
+    test_meeting.deleted_at = datetime.utcnow() - timedelta(days=30)
+    db.commit()
+
+    purged = purge_expired_meetings(db)
+
+    assert purged == 0
+    assert db.query(Meeting).filter(Meeting.id == test_meeting.id).first() is not None
+
+
+def test_purge_never_touches_active_meetings(db, test_meeting, test_audio_file):
+    """Une réunion jamais supprimée est conservée, quel que soit son âge"""
+    test_meeting.created_at = datetime.utcnow() - timedelta(days=1000)
+    db.commit()
+
+    purged = purge_expired_meetings(db)
+
+    assert purged == 0
+    assert db.query(Meeting).filter(Meeting.id == test_meeting.id).first() is not None
+    assert db.query(AudioFile).filter(AudioFile.id == test_audio_file.id).first() is not None
+
+
+def test_purge_respects_a_custom_retention(db, test_meeting):
+    """La durée de conservation est paramétrable — ici 1 mois au lieu de 12"""
+    test_meeting.deleted_at = datetime.utcnow() - timedelta(days=60)
+    db.commit()
+
+    assert purge_expired_meetings(db, retention_months=12) == 0
+    assert purge_expired_meetings(db, retention_months=1)  == 1
