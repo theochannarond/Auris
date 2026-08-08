@@ -11,7 +11,7 @@ from app.models.transcription import Transcription
 from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate, MeetingStatusResponse, MeetingListItem, MeetingDetailResponse, MeetingTranscriptionDetail, MeetingDeleteResponse
 from app.schemas.summary import SummaryResponse
 from app.services import vexa_service
-from app.services.storage_service import upload_audio_file
+from app.services.storage_service import upload_audio_file, delete_audio_file
 from app.services.meeting_deletion_service import soft_delete_meeting
 from typing import List
 from uuid import UUID
@@ -131,7 +131,20 @@ async def delete_meeting(
     if not meeting:
         raise HTTPException(status_code=404, detail="Réunion non trouvée")
 
+    # Les clés sont relevées avant le soft delete, tant que les lignes sont encore actives
+    storage_keys = [
+        audio.storage_key for audio in db.query(AudioFile).filter(
+            AudioFile.meeting_id == meeting.id,
+            AudioFile.deleted_at == None
+        ).all()
+    ]
+
     soft_delete_meeting(db, meeting)
+
+    # La base fait foi : un échec OVH laisse un fichier orphelin, jamais une
+    # donnée encore lisible par l'utilisateur. On ne remonte donc pas l'erreur.
+    for storage_key in storage_keys:
+        await delete_audio_file(storage_key)
 
     return MeetingDeleteResponse(
         id         = meeting.id,
