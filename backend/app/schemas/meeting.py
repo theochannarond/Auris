@@ -73,6 +73,13 @@ class MeetingDetailResponse(BaseModel):
         from_attributes = True
 
 
+class MeetingDeleteResponse(BaseModel):
+    """Confirmation de suppression renvoyée à l'utilisateur (RGPD Art.17)."""
+    id:         UUID
+    deleted_at: datetime
+    message:    str
+
+
 class MeetingStatusUpdate(BaseModel):
     status: str
 
