@@ -11,6 +11,12 @@ export interface MeetingListItem {
   tone: string | null;
 }
 
+interface MeetingDeleteResponse {
+  id: string;
+  deleted_at: string;
+  message: string;
+}
+
 export function useMeetings() {
   const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,5 +46,20 @@ export function useMeetings() {
     };
   }, []);
 
-  return { meetings, loading, error };
+  /**
+   * Supprime une réunion et la retire de la liste affichée.
+   * Renvoie le message de confirmation rédigé par le backend (RGPD Art.17).
+   */
+  const deleteMeeting = async (meetingId: string): Promise<string> => {
+    const res = await fetch(`/api/v1/meetings/${meetingId}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Erreur suppression de la réunion");
+
+    const data: MeetingDeleteResponse = await res.json();
+    // Retrait local plutôt que rechargement : le backend filtre déjà les
+    // réunions supprimées, un refetch renverrait exactement la même liste
+    setMeetings((current) => current.filter((m) => m.id !== meetingId));
+    return data.message;
+  };
+
+  return { meetings, loading, error, deleteMeeting };
 }
