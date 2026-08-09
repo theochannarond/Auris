@@ -2,7 +2,8 @@ import ClassificationBadges from "./ClassificationBadges";
 import type { MeetingListItem } from "../../hooks/useMeetings";
 
 interface MeetingCardProps {
-  meeting: MeetingListItem;
+  meeting:  MeetingListItem;
+  onDelete?: (meetingId: string) => Promise<void>;
 }
 
 function formatDate(isoDate: string): string {
@@ -14,7 +15,6 @@ function formatDate(isoDate: string): string {
 }
 
 function formatDuration(seconds: number | null): string {
-  // duration_sec n'est pas encore alimenté côté backend — on l'assume plutôt que de masquer
   if (seconds === null) return "Durée inconnue";
   const minutes = Math.floor(seconds / 60);
   const rest    = seconds % 60;
@@ -22,27 +22,32 @@ function formatDuration(seconds: number | null): string {
   return `${minutes} min ${String(rest).padStart(2, "0")} s`;
 }
 
-export default function MeetingCard({ meeting }: MeetingCardProps) {
+export default function MeetingCard({ meeting, onDelete }: MeetingCardProps) {
   return (
-    <div style={{
-      display:       "flex",
-      flexDirection: "column",
-      gap:           "12px",
-      padding:       "20px",
-      border:        "1px solid #E5E7EB",
-      borderRadius:  "12px",
-      background:    "white"
-    }}>
-      <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "#111827" }}>
-        {meeting.title}
+    <div className="flex flex-col gap-3 p-5 border border-[#E5E7EB] rounded-xl bg-white hover:shadow-md transition-shadow duration-200">
+      <div className="flex justify-between items-start gap-4">
+        <span className="text-base font-semibold text-gray-900">
+          {meeting.title}
+        </span>
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete(meeting.id);
+            }}
+            className="text-xs text-gray-400 hover:text-[#B91C1C] transition-colors cursor-pointer border-none bg-transparent"
+          >
+            Supprimer
+          </button>
+        )}
       </div>
 
-      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", color: "#6B7280", fontSize: "0.85rem" }}>
+      <div className="flex gap-4 flex-wrap text-gray-500 text-sm">
         <span>{formatDate(meeting.created_at)}</span>
         <span>{formatDuration(meeting.duration_sec)}</span>
       </div>
 
-      {/* Ne rend rien tant que le résumé n'a pas produit de thème ni de ton */}
       <ClassificationBadges theme={meeting.theme} tone={meeting.tone} />
     </div>
   );

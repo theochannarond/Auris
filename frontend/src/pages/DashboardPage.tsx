@@ -1,21 +1,28 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMeetings } from "../hooks/useMeetings";
 import MeetingCard from "../components/ui/MeetingCard";
 import SkeletonCard from "../components/SkeletonCard";
 
-
 export default function DashboardPage() {
-  const { meetings, loading, error } = useMeetings();
+  const { meetings, loading, error, deleteMeeting } = useMeetings();
+  const [notice, setNotice]           = useState("");
+  const [deleteError, setDeleteError] = useState("");
+
+  const handleDelete = async (meetingId: string) => {
+    setNotice("");
+    setDeleteError("");
+    try {
+      setNotice(await deleteMeeting(meetingId));
+    } catch {
+      setDeleteError("La suppression a échoué. La réunion est toujours présente.");
+    }
+  };
 
   return (
-    <div style={{
-      fontFamily: "Arial, sans-serif",
-      maxWidth: "760px",
-      margin: "0 auto",
-      padding: "48px 24px"
-    }}>
-      <h1 style={{ fontSize: "2rem", marginBottom: "8px" }}>Auris</h1>
-      <h2 style={{ fontSize: "1.1rem", color: "#6B7280", marginBottom: "40px", fontWeight: "normal" }}>
+    <div className="font-sans max-w-[760px] mx-auto px-6 py-12">
+      <h1 className="text-3xl mb-2">Auris</h1>
+      <h2 className="text-lg text-gray-500 mb-10 font-normal">
         Historique de vos réunions
       </h2>
 
@@ -28,35 +35,41 @@ export default function DashboardPage() {
       )}
 
       {error && (
-        <p style={{ color: "#B91C1C", fontSize: "0.9rem" }}>{error}</p>
+        <p className="text-[#B91C1C] text-sm">{error}</p>
+      )}
+
+      {notice && (
+        <div className="px-4 py-3 mb-5 rounded-xl bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46] text-sm">
+          {notice}
+        </div>
+      )}
+
+      {deleteError && (
+        <div className="px-4 py-3 mb-5 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-[#7F1D1D] text-sm">
+          {deleteError}
+        </div>
       )}
 
       {!loading && !error && meetings.length === 0 && (
-        <div style={{
-          background: "#F4F6FB",
-          borderRadius: "12px",
-          padding: "32px",
-          textAlign: "center",
-          color: "#6B7280"
-        }}>
-          <p style={{ marginBottom: "8px", color: "#374151", fontWeight: "500" }}>
+        <div className="bg-[#F4F6FB] rounded-xl p-8 text-center text-gray-500">
+          <p className="mb-2 text-gray-700 font-medium">
             Aucune réunion pour le moment
           </p>
-          <p style={{ fontSize: "0.9rem" }}>
+          <p className="text-sm">
             Vos réunions apparaîtront ici une fois enregistrées.
           </p>
         </div>
       )}
 
       {!loading && !error && meetings.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div className="flex flex-col gap-3">
           {meetings.map((meeting) => (
             <Link
               key={meeting.id}
               to={`/meetings/${meeting.id}`}
-              style={{ textDecoration: "none", color: "inherit" }}
+              className="no-underline text-inherit"
             >
-              <MeetingCard meeting={meeting} />
+              <MeetingCard meeting={meeting} onDelete={handleDelete} />
             </Link>
           ))}
         </div>
