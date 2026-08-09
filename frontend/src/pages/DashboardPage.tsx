@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { useMeetings } from "../hooks/useMeetings";
 import MeetingCard from "../components/ui/MeetingCard";
+import SkeletonCard from "../components/SkeletonCard";
+
 
 export default function DashboardPage() {
   const { meetings, loading, error } = useMeetings();
@@ -18,7 +20,11 @@ export default function DashboardPage() {
       </h2>
 
       {loading && (
-        <p style={{ color: "#6B7280" }}>Chargement de vos réunions...</p>
+        <div>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
       )}
 
       {error && (
