@@ -7,7 +7,6 @@ interface DictaphoneProps {
   onStop: () => void;
   onPause: () => void;
   onResume: () => void;
-  onReset: () => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -27,20 +26,12 @@ export default function Dictaphone({
   onResume,
 }: DictaphoneProps) {
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "24px",
-      fontFamily: "Arial, sans-serif",
-      padding: "32px",
-    }}>
-      <div style={{ fontSize: "2.5rem", fontVariantNumeric: "tabular-nums" }}>
+    <div className="flex flex-col items-center justify-center gap-6 font-sans p-8 w-full max-w-[480px]">
+      <div className="text-4xl tabular-nums">
         {formatDuration(duration)}
       </div>
 
-      <div style={{ color: "#6B7280", fontSize: "0.9rem" }}>
+      <div className="text-gray-500 text-sm">
         {isRecording
           ? isPaused
             ? "En pause"
@@ -50,19 +41,11 @@ export default function Dictaphone({
             : "Prêt à enregistrer"}
       </div>
 
-      <div style={{ display: "flex", gap: "16px" }}>
+      <div className="flex gap-4 flex-wrap justify-center w-full">
         {!isRecording && !audioBlob && (
           <button
             onClick={onStart}
-            style={{
-              backgroundColor: "#2C5F8A",
-              color: "white",
-              border: "none",
-              padding: "12px 32px",
-              borderRadius: "8px",
-              fontSize: "1rem",
-              cursor: "pointer",
-            }}
+            className="bg-[#2C5F8A] text-white border-none px-8 py-3 rounded-lg text-base cursor-pointer min-h-[44px] w-full sm:w-auto"
           >
             Enregistrer
           </button>
@@ -72,30 +55,14 @@ export default function Dictaphone({
           <>
             <button
               onClick={isPaused ? onResume : onPause}
-              style={{
-                backgroundColor: "#9CA3AF",
-                color: "white",
-                border: "none",
-                padding: "12px 32px",
-                borderRadius: "8px",
-                fontSize: "1rem",
-                cursor: "pointer",
-              }}
+              className="bg-gray-400 text-white border-none px-8 py-3 rounded-lg text-base cursor-pointer min-h-[44px]"
             >
               {isPaused ? "Reprendre" : "Pause"}
             </button>
 
             <button
               onClick={onStop}
-              style={{
-                backgroundColor: "#B91C1C",
-                color: "white",
-                border: "none",
-                padding: "12px 32px",
-                borderRadius: "8px",
-                fontSize: "1rem",
-                cursor: "pointer",
-              }}
+              className="bg-[#B91C1C] text-white border-none px-8 py-3 rounded-lg text-base cursor-pointer min-h-[44px]"
             >
               Arrêter
             </button>
