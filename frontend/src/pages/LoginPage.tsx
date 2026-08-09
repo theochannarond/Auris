@@ -1,4 +1,6 @@
 import { useState } from "react";
+import Button from "../components/ui/Button";
+
 
 const KEYCLOAK_URL = import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080";
 const KEYCLOAK_REALM = import.meta.env.VITE_KEYCLOAK_REALM || "auris";
@@ -25,13 +27,15 @@ export default function LoginPage() {
       <p className="text-gray-500 mb-10 text-center">
         Assistant de réunion intelligent
       </p>
-      <button
+      <Button
         onClick={handleLogin}
         disabled={loading}
-        className="bg-[#2C5F8A] text-white border-none px-8 py-3 rounded-lg text-base min-h-[44px] w-full sm:w-auto cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
+        loading={loading}
+        fullWidth
+        size="lg"
       >
         {loading ? "Redirection..." : "Se connecter"}
-      </button>
+      </Button>
       <p className="mt-6 text-sm text-gray-500 text-center">
         Authentification sécurisée via Keycloak
       </p>
