@@ -20,35 +20,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      height: "100vh",
-      fontFamily: "Arial, sans-serif"
-    }}>
-      <h1 style={{ fontSize: "2.5rem", marginBottom: "8px" }}>Auris</h1>
-      <p style={{ color: "#6B7280", marginBottom: "40px" }}>
+    <div className="flex flex-col items-center justify-center min-h-screen font-sans px-6">
+      <h1 className="text-4xl mb-2">Auris</h1>
+      <p className="text-gray-500 mb-10 text-center">
         Assistant de réunion intelligent
       </p>
       <button
         onClick={handleLogin}
         disabled={loading}
-        style={{
-          backgroundColor: "#2C5F8A",
-          color: "white",
-          border: "none",
-          padding: "12px 32px",
-          borderRadius: "8px",
-          fontSize: "1rem",
-          cursor: loading ? "not-allowed" : "pointer",
-          opacity: loading ? 0.7 : 1
-        }}
+        className="bg-[#2C5F8A] text-white border-none px-8 py-3 rounded-lg text-base min-h-[44px] w-full sm:w-auto cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
       >
         {loading ? "Redirection..." : "Se connecter"}
       </button>
-      <p style={{ marginTop: "24px", fontSize: "0.8rem", color: "#6B7280" }}>
+      <p className="mt-6 text-sm text-gray-500 text-center">
         Authentification sécurisée via Keycloak
       </p>
     </div>
