@@ -7,6 +7,7 @@ interface DictaphoneProps {
   onStop: () => void;
   onPause: () => void;
   onResume: () => void;
+  onReset: () => void;
 }
 
 function formatDuration(seconds: number): string {

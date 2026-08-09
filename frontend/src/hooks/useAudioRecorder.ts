@@ -5,6 +5,7 @@ interface UseAudioRecorderReturn {
   isPaused: boolean;
   duration: number;
   audioBlob: Blob | null;
+  micError: string;
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   pauseRecording: () => void;
@@ -17,6 +18,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
   const [isPaused, setIsPaused] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [micError, setMicError] = useState<string>("");
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -59,7 +61,13 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
       setIsPaused(false);
       startTimer();
     } catch (error) {
-      console.error('Erreur accès microphone:', error);
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        setMicError(
+          "L'acces au microphone a ete refuse. Autorisez-le dans les parametres de votre navigateur, puis rafraichissez la page."
+        );
+      } else {
+        setMicError("Impossible d'acceder au microphone.");
+      }
     }
   }, []);
 
@@ -102,6 +110,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     isPaused,
     duration,
     audioBlob,
+    micError,
     startRecording,
     stopRecording,
     pauseRecording,

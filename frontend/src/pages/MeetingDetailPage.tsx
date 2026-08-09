@@ -1,7 +1,12 @@
+import { useState, useEffect } from "react";
+// @ts-ignore
 import { Link, useParams } from "react-router-dom";
 import { useMeetingDetail } from "../hooks/useMeetingDetail";
+import { useSummaryStatus } from "../hooks/useSummaryStatus";
 import SummaryDisplay from "../components/ui/SummaryDisplay";
 import DiarizationDisplay from "../components/ui/DiarizationDisplay";
+import Spinner from "../components/Spinner";
+import ProgressBar from "../components/ProgressBar";
 
 function formatDate(isoDate: string): string {
   return new Date(isoDate).toLocaleDateString("fr-FR", {
@@ -29,6 +34,39 @@ const sectionTitle = {
 export default function MeetingDetailPage() {
   const { meetingId } = useParams<{ meetingId: string }>();
   const { meeting, loading, error } = useMeetingDetail(meetingId);
+
+  const [summaryId, setSummaryId] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
+  const { summary: polledSummary } = useSummaryStatus(summaryId);
+
+  useEffect(() => {
+    if (polledSummary && polledSummary.content.trim() !== "") {
+      setIsSummarizing(false);
+    }
+  }, [polledSummary]);
+
+  const handleGenerateSummary = async () => {
+    if (!meeting) return;
+    setIsSummarizing(true);
+    setSummaryError("");
+
+    try {
+      const response = await fetch("/api/v1/summaries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meeting_id: meeting.id })
+      });
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      setSummaryId(data.id);
+    } catch {
+      setSummaryError("Impossible de générer le compte-rendu pour le moment.");
+      setIsSummarizing(false);
+    }
+  };
+
+  const readySummary = polledSummary && polledSummary.content.trim() !== "" ? polledSummary : null;
 
   return (
     <div style={{
@@ -61,8 +99,8 @@ export default function MeetingDetailPage() {
             <span>{meeting.mode === "video" ? "Réunion en ligne" : "Dictaphone"}</span>
           </div>
 
-          {/* Résumé structuré — SummaryDisplay exige un contenu, on ne le monte que s'il existe */}
           <h2 style={sectionTitle}>Compte rendu</h2>
+
           {meeting.summary ? (
             <SummaryDisplay
               content={meeting.summary.content}
@@ -72,13 +110,53 @@ export default function MeetingDetailPage() {
               theme={meeting.summary.theme}
               processingMs={meeting.summary.processing_ms}
             />
+          ) : readySummary ? (
+            <SummaryDisplay
+              content={readySummary.content}
+              decisions={readySummary.decisions}
+              action_items={readySummary.action_items}
+              tone={readySummary.tone}
+              theme={readySummary.theme}
+              processingMs={readySummary.processing_ms}
+            />
           ) : (
-            <p style={{ color: "#6B7280", fontSize: "0.9rem" }}>
-              Aucun compte rendu n'a encore été généré pour cette réunion.
-            </p>
+            <div>
+              <p style={{ color: "#6B7280", fontSize: "0.9rem", marginBottom: "12px" }}>
+                Aucun compte rendu n'a encore été généré pour cette réunion.
+              </p>
+
+              {meeting.transcription?.raw_text && (
+                <button
+                  onClick={handleGenerateSummary}
+                  disabled={isSummarizing}
+                  style={{
+                    padding: "10px 24px", borderRadius: "8px",
+                    border: "none",
+                    backgroundColor: isSummarizing ? "#9CA3AF" : "#2C5F8A",
+                    color: "white",
+                    cursor: isSummarizing ? "not-allowed" : "pointer",
+                    fontSize: "0.9rem",
+                    display: "flex", alignItems: "center", gap: "8px"
+                  }}
+                >
+                  {isSummarizing ? <Spinner size={16} /> : "Générer le compte-rendu"}
+                </button>
+              )}
+
+              {isSummarizing && (
+                <div style={{ marginTop: "16px", width: "100%", maxWidth: "480px" }}>
+                  <ProgressBar label="Génération du compte-rendu en cours..." />
+                </div>
+              )}
+
+              {summaryError && (
+                <p style={{ color: "#B91C1C", fontSize: "0.85rem", marginTop: "8px" }}>
+                  {summaryError}
+                </p>
+              )}
+            </div>
           )}
 
-          {/* Diarisation — le composant ne rend rien si la liste est vide */}
           {meeting.transcription?.diarization && meeting.transcription.diarization.length > 0 && (
             <>
               <h2 style={sectionTitle}>Prise de parole</h2>
