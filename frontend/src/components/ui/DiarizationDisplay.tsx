@@ -9,7 +9,6 @@ interface DiarizationDisplayProps {
   segments: DiarizationSegment[];
 }
 
-// Palette de couleurs par locuteur
 const SPEAKER_COLORS = [
   { bg: "#E3F2FD", border: "#1565C0", text: "#0D3B7A" },
   { bg: "#E8F5E9", border: "#2E7D32", text: "#1B4D1E" },
@@ -28,7 +27,6 @@ function formatTime(seconds: number): string {
 export default function DiarizationDisplay({ segments }: DiarizationDisplayProps) {
   if (!segments || segments.length === 0) return null;
 
-  // Associe chaque locuteur unique à une couleur
   const speakerList = Array.from(new Set(segments.map(s => s.speaker)));
   const colorMap: Record<string, typeof SPEAKER_COLORS[0]> = {};
   speakerList.forEach((speaker, index) => {
@@ -36,26 +34,18 @@ export default function DiarizationDisplay({ segments }: DiarizationDisplayProps
   });
 
   return (
-    <div style={{ width: "100%", maxWidth: "680px", margin: "0 auto" }}>
+    <div className="w-full max-w-[680px] mx-auto">
 
-      {/* Légende des locuteurs */}
-      <div style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "8px",
-        marginBottom: "20px"
-      }}>
+      {/* Légende */}
+      <div className="flex flex-wrap gap-2 mb-5">
         {speakerList.map(speaker => (
           <span
             key={speaker}
+            className="px-3 py-1 rounded-full text-xs font-semibold border"
             style={{
-              padding: "4px 12px",
-              borderRadius: "99px",
-              fontSize: "0.8rem",
-              fontWeight: 600,
               background: colorMap[speaker].bg,
               color:      colorMap[speaker].text,
-              border:     `1px solid ${colorMap[speaker].border}`
+              borderColor: colorMap[speaker].border
             }}
           >
             {speaker}
@@ -63,47 +53,31 @@ export default function DiarizationDisplay({ segments }: DiarizationDisplayProps
         ))}
       </div>
 
-      {/* Segments dans l'ordre chronologique */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      {/* Segments */}
+      <div className="flex flex-col gap-2.5">
         {segments.map((segment, index) => {
           const colors = colorMap[segment.speaker];
           return (
             <div
               key={index}
+              className="px-4 py-3 rounded-lg"
               style={{
-                padding:      "12px 16px",
-                borderRadius: "8px",
-                background:   colors.bg,
-                borderLeft:   `4px solid ${colors.border}`,
+                background:  colors.bg,
+                borderLeft:  `4px solid ${colors.border}`
               }}
             >
-              <div style={{
-                display:        "flex",
-                justifyContent: "space-between",
-                alignItems:     "center",
-                marginBottom:   "6px"
-              }}>
-                <span style={{
-                  fontWeight: 600,
-                  fontSize:   "0.85rem",
-                  color:      colors.text
-                }}>
+              <div className="flex justify-between items-center mb-1.5">
+                <span
+                  className="font-semibold text-sm"
+                  style={{ color: colors.text }}
+                >
                   {segment.speaker}
                 </span>
-                <span style={{
-                  fontSize: "0.75rem",
-                  color:    "#9CA3AF",
-                  fontVariantNumeric: "tabular-nums"
-                }}>
+                <span className="text-xs text-gray-400 tabular-nums">
                   {formatTime(segment.start)} — {formatTime(segment.end)}
                 </span>
               </div>
-              <p style={{
-                margin:     0,
-                fontSize:   "0.9rem",
-                color:      "#1C1C1C",
-                lineHeight: "1.55"
-              }}>
+              <p className="m-0 text-sm text-[#1C1C1C] leading-snug">
                 {segment.text}
               </p>
             </div>
