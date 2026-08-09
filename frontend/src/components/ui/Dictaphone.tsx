@@ -1,16 +1,18 @@
+import Button from "./Button";
+
 interface DictaphoneProps {
   isRecording: boolean;
-  isPaused: boolean;
-  duration: number;
-  audioBlob: Blob | null;
-  onStart: () => void;
-  onStop: () => void;
-  onPause: () => void;
-  onResume: () => void;
+  isPaused:    boolean;
+  duration:    number;
+  audioBlob:   Blob | null;
+  onStart:     () => void;
+  onStop:      () => void;
+  onPause:     () => void;
+  onResume:    () => void;
 }
 
 function formatDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
+  const minutes         = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
@@ -43,29 +45,25 @@ export default function Dictaphone({
 
       <div className="flex gap-4 flex-wrap justify-center w-full">
         {!isRecording && !audioBlob && (
-          <button
-            onClick={onStart}
-            className="bg-[#2C5F8A] text-white border-none px-8 py-3 rounded-lg text-base cursor-pointer min-h-[44px] w-full sm:w-auto"
-          >
+          <Button onClick={onStart} fullWidth>
             Enregistrer
-          </button>
+          </Button>
         )}
 
         {isRecording && (
           <>
-            <button
+            <Button
+              variant="secondary"
               onClick={isPaused ? onResume : onPause}
-              className="bg-gray-400 text-white border-none px-8 py-3 rounded-lg text-base cursor-pointer min-h-[44px]"
             >
               {isPaused ? "Reprendre" : "Pause"}
-            </button>
-
-            <button
+            </Button>
+            <Button
+              variant="danger"
               onClick={onStop}
-              className="bg-[#B91C1C] text-white border-none px-8 py-3 rounded-lg text-base cursor-pointer min-h-[44px]"
             >
               Arrêter
-            </button>
+            </Button>
           </>
         )}
       </div>
