@@ -1,9 +1,24 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMeetings } from "../hooks/useMeetings";
 import MeetingCard from "../components/ui/MeetingCard";
 
 export default function DashboardPage() {
-  const { meetings, loading, error } = useMeetings();
+  const { meetings, loading, error, deleteMeeting } = useMeetings();
+  const [notice, setNotice]           = useState("");
+  const [deleteError, setDeleteError] = useState("");
+
+  const handleDelete = async (meetingId: string) => {
+    setNotice("");
+    setDeleteError("");
+    try {
+      // Le texte de confirmation vient du backend : une seule formulation RGPD
+      setNotice(await deleteMeeting(meetingId));
+    } catch {
+      setDeleteError("La suppression a échoué. La réunion est toujours présente.");
+      throw new Error("suppression échouée");  // rend la main à la carte
+    }
+  };
 
   return (
     <div style={{
@@ -23,6 +38,35 @@ export default function DashboardPage() {
 
       {error && (
         <p style={{ color: "#B91C1C", fontSize: "0.9rem" }}>{error}</p>
+      )}
+
+      {/* Confirmation de suppression — RGPD Art.17 */}
+      {notice && (
+        <div style={{
+          padding:      "14px 16px",
+          marginBottom: "20px",
+          borderRadius: "10px",
+          background:   "#ECFDF5",
+          border:       "1px solid #A7F3D0",
+          color:        "#065F46",
+          fontSize:     "0.9rem"
+        }}>
+          {notice}
+        </div>
+      )}
+
+      {deleteError && (
+        <div style={{
+          padding:      "14px 16px",
+          marginBottom: "20px",
+          borderRadius: "10px",
+          background:   "#FEF2F2",
+          border:       "1px solid #FECACA",
+          color:        "#7F1D1D",
+          fontSize:     "0.9rem"
+        }}>
+          {deleteError}
+        </div>
       )}
 
       {!loading && !error && meetings.length === 0 && (
@@ -50,7 +94,7 @@ export default function DashboardPage() {
               to={`/meetings/${meeting.id}`}
               style={{ textDecoration: "none", color: "inherit" }}
             >
-              <MeetingCard meeting={meeting} />
+              <MeetingCard meeting={meeting} onDelete={handleDelete} />
             </Link>
           ))}
         </div>

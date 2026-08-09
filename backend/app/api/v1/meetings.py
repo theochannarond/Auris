@@ -8,10 +8,11 @@ from app.models.meeting import Meeting
 from app.models.audio_file import AudioFile
 from app.models.summary import Summary
 from app.models.transcription import Transcription
-from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate, MeetingStatusResponse, MeetingListItem, MeetingDetailResponse, MeetingTranscriptionDetail
+from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate, MeetingStatusResponse, MeetingListItem, MeetingDetailResponse, MeetingTranscriptionDetail, MeetingDeleteResponse
 from app.schemas.summary import SummaryResponse
 from app.services import vexa_service
-from app.services.storage_service import upload_audio_file
+from app.services.storage_service import upload_audio_file, delete_audio_file
+from app.services.meeting_deletion_service import soft_delete_meeting
 from typing import List
 from uuid import UUID
 import uuid as uuid_lib
@@ -105,6 +106,50 @@ async def get_meeting_detail(
         created_at    = meeting.created_at,
         transcription = MeetingTranscriptionDetail.model_validate(transcription) if transcription else None,
         summary       = SummaryResponse.model_validate(summary) if summary else None
+    )
+
+
+# ─── RGPD Art.17 — suppression d'une réunion ───
+@router.delete("/meetings/{meeting_id}", response_model=MeetingDeleteResponse)
+async def delete_meeting(
+    meeting_id:   UUID,
+    db:           Session = Depends(get_db),
+    current_user: dict    = Depends(get_current_user)
+):
+    user = db.query(User).filter(User.keycloak_id == current_user["id"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé en base")
+
+    # Même filtre owner_id qu'en lecture : on ne supprime jamais la réunion d'un autre.
+    # Une réunion déjà supprimée renvoie 404 — l'appelant ne peut pas distinguer
+    # "jamais existé" de "déjà supprimée", ce qui évite de divulguer son existence.
+    meeting = db.query(Meeting).filter(
+        Meeting.id         == meeting_id,
+        Meeting.owner_id   == user.id,
+        Meeting.deleted_at == None
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Réunion non trouvée")
+
+    # Les clés sont relevées avant le soft delete, tant que les lignes sont encore actives
+    storage_keys = [
+        audio.storage_key for audio in db.query(AudioFile).filter(
+            AudioFile.meeting_id == meeting.id,
+            AudioFile.deleted_at == None
+        ).all()
+    ]
+
+    soft_delete_meeting(db, meeting)
+
+    # La base fait foi : un échec OVH laisse un fichier orphelin, jamais une
+    # donnée encore lisible par l'utilisateur. On ne remonte donc pas l'erreur.
+    for storage_key in storage_keys:
+        await delete_audio_file(storage_key)
+
+    return MeetingDeleteResponse(
+        id         = meeting.id,
+        deleted_at = meeting.deleted_at,
+        message    = "Réunion supprimée. Vos données seront définitivement effacées à l'issue de la période de conservation légale."
     )
 
 
