@@ -1,5 +1,5 @@
 interface TranscriptionProgressProps {
-  status: string | null;
+  status:       string | null;
   processingMs?: number | null;
   errorMessage?: string | null;
 }
@@ -28,7 +28,6 @@ export default function TranscriptionProgress({
   if (status === "processing") {
     return (
       <div className={`${boxClass} bg-[#E0EAF5] text-[#1E3A5F]`}>
-        {/* Barre indéterminée : Voxtral ne renvoie pas de pourcentage d'avancement */}
         <style>{`
           @keyframes auris-progress-slide {
             0%   { transform: translateX(-100%); }

@@ -1,11 +1,10 @@
 import { useState } from "react";
 import Button from "../components/ui/Button";
 
-
-const KEYCLOAK_URL = import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080";
-const KEYCLOAK_REALM = import.meta.env.VITE_KEYCLOAK_REALM || "auris";
+const KEYCLOAK_URL       = import.meta.env.VITE_KEYCLOAK_URL       || "http://localhost:8080";
+const KEYCLOAK_REALM     = import.meta.env.VITE_KEYCLOAK_REALM     || "auris";
 const KEYCLOAK_CLIENT_ID = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || "auris-frontend";
-const REDIRECT_URI = window.location.origin;
+const REDIRECT_URI       = window.location.origin;
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -31,7 +30,6 @@ export default function LoginPage() {
         onClick={handleLogin}
         disabled={loading}
         loading={loading}
-        fullWidth
         size="lg"
       >
         {loading ? "Redirection..." : "Se connecter"}

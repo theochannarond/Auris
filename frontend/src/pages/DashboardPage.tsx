@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMeetings } from "../hooks/useMeetings";
 import MeetingCard from "../components/ui/MeetingCard";
+import SkeletonCard from "../components/SkeletonCard";
 
 export default function DashboardPage() {
   const { meetings, loading, error, deleteMeeting } = useMeetings();
@@ -15,7 +16,6 @@ export default function DashboardPage() {
       setNotice(await deleteMeeting(meetingId));
     } catch {
       setDeleteError("La suppression a échoué. La réunion est toujours présente.");
-      throw new Error("suppression échouée");
     }
   };
 
@@ -27,14 +27,17 @@ export default function DashboardPage() {
       </h2>
 
       {loading && (
-        <p className="text-gray-500">Chargement de vos réunions...</p>
+        <div>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
       )}
 
       {error && (
         <p className="text-[#B91C1C] text-sm">{error}</p>
       )}
 
-      {/* Confirmation suppression — RGPD Art.17 */}
       {notice && (
         <div className="px-4 py-3 mb-5 rounded-xl bg-[#ECFDF5] border border-[#A7F3D0] text-[#065F46] text-sm">
           {notice}

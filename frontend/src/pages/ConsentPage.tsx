@@ -1,7 +1,6 @@
 import { useState } from "react";
 import Button from "../components/ui/Button";
 
-
 interface ConsentPageProps {
   onConsent: () => void;
 }
@@ -9,21 +8,21 @@ interface ConsentPageProps {
 export default function ConsentPage({ onConsent }: ConsentPageProps) {
   const [checked, setChecked] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
 
   const handleConsent = async () => {
     if (!checked) return;
     setLoading(true);
+    setError("");
     try {
       await fetch("/api/v1/consents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          given_at: new Date().toISOString(),
-        }),
+        body: JSON.stringify({ given_at: new Date().toISOString() }),
       });
       onConsent();
-    } catch (error) {
-      console.error("Erreur consentement:", error);
+    } catch {
+      setError("Une erreur est survenue. Veuillez réessayer.");
     } finally {
       setLoading(false);
     }
@@ -60,6 +59,10 @@ export default function ConsentPage({ onConsent }: ConsentPageProps) {
           J'ai lu et j'accepte les conditions de traitement de mes données
         </span>
       </label>
+
+      {error && (
+        <p className="text-[#B91C1C] text-sm mb-4">{error}</p>
+      )}
 
       <Button
         onClick={handleConsent}

@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { useMeetingStatus } from "../hooks/useMeetingStatus";
 import BotStatusNotification from "../components/ui/BotStatusNotification";
+import Button from "../components/ui/Button";
+import Input from "../components/ui/Input";
+import Spinner from "../components/Spinner";
 
 export default function VideoModePage() {
   const [meetingLink, setMeetingLink] = useState("");
-  const [title, setTitle] = useState("");
-  const [meeting, setMeeting] = useState<{id: string; status: string} | null>(null);
-  const [loading, setLoading] = useState(false);
-  const { status } = useMeetingStatus(meeting?.id ?? null);
-  const [error, setError] = useState("");
+  const [title, setTitle]             = useState("");
+  const [meeting, setMeeting]         = useState<{id: string; status: string} | null>(null);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState("");
+  const { status }                    = useMeetingStatus(meeting?.id ?? null);
 
   const handleCreateMeeting = async () => {
     if (!title || !meetingLink) {
@@ -23,10 +26,10 @@ export default function VideoModePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, meeting_link: meetingLink })
       });
-      if (!response.ok) throw new Error("Erreur lors de la création de la réunion.");
+      if (!response.ok) throw new Error();
       const data = await response.json();
       setMeeting(data);
-    } catch (err) {
+    } catch {
       setError("Une erreur est survenue. Veuillez réessayer.");
     } finally {
       setLoading(false);
@@ -34,77 +37,58 @@ export default function VideoModePage() {
   };
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      height: "100vh",
-      fontFamily: "Arial, sans-serif",
-      padding: "0 24px",
-      maxWidth: "600px",
-      margin: "0 auto"
-    }}>
-      <h1 style={{ fontSize: "2rem", marginBottom: "8px" }}>Auris</h1>
-      <h2 style={{ fontSize: "1.1rem", color: "#6B7280", marginBottom: "32px" }}>
+    <div className="flex flex-col items-center justify-center min-h-screen font-sans px-6 max-w-[600px] mx-auto">
+      <h1 className="text-3xl mb-2">Auris</h1>
+      <h2 className="text-lg text-gray-500 mb-8 text-center">
         Mode réunion vidéo
       </h2>
 
       {!meeting ? (
-        <>
-          <input
-            type="text"
+        <div className="w-full flex flex-col gap-3">
+          <Input
             placeholder="Titre de la réunion"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            style={{
-              width: "100%", padding: "12px", borderRadius: "8px",
-              border: "1px solid #D1D5DB", marginBottom: "12px",
-              fontSize: "1rem"
-            }}
           />
-          <input
-            type="text"
+          <Input
             placeholder="Lien Google Meet / Teams / Zoom"
             value={meetingLink}
             onChange={e => setMeetingLink(e.target.value)}
-            style={{
-              width: "100%", padding: "12px", borderRadius: "8px",
-              border: "1px solid #D1D5DB", marginBottom: "24px",
-              fontSize: "1rem"
-            }}
           />
           {error && (
-            <p style={{ color: "#B91C1C", marginBottom: "16px", fontSize: "0.9rem" }}>
-              {error}
-            </p>
+            <p className="text-[#B91C1C] text-sm">{error}</p>
           )}
-          <button
+          <Button
             onClick={handleCreateMeeting}
             disabled={loading}
-            style={{
-              backgroundColor: loading ? "#9CA3AF" : "#2C5F8A",
-              color: "white", border: "none",
-              padding: "12px 48px", borderRadius: "8px",
-              fontSize: "1rem", cursor: loading ? "not-allowed" : "pointer"
-            }}
+            loading={loading}
+            fullWidth
           >
             {loading ? "Démarrage..." : "Lancer la réunion"}
-          </button>
-        </>
+          </Button>
+        </div>
       ) : (
-        <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: "1.1rem", color: "#059669", marginBottom: "8px" }}>
-            ✓ Le bot Auris a rejoint votre réunion
-          </p>
-          <p style={{ color: "#6B7280", fontSize: "0.9rem" }}>
+        <div className="text-center">
+          {status === "pending" && (
+            <div className="flex items-center gap-3 justify-center text-gray-500 mb-4">
+              <Spinner size={18} />
+              <span>En attente que le bot rejoigne...</span>
+            </div>
+          )}
+          {status === "recording" && (
+            <p className="text-lg text-[#059669] mb-2 font-medium">
+              ✓ Le bot Auris a rejoint votre réunion
+            </p>
+          )}
+          <p className="text-gray-500 text-sm">
             Statut : {meeting.status}
           </p>
-          <p style={{ color: "#6B7280", fontSize: "0.85rem", marginTop: "8px" }}>
+          <p className="text-gray-500 text-xs mt-2">
             ID réunion : {meeting.id}
           </p>
         </div>
       )}
+
       {meeting && <BotStatusNotification status={status} />}
     </div>
   );
