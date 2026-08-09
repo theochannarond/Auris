@@ -127,7 +127,6 @@ export default function DictaphonePage() {
         onStop={stopRecording}
         onPause={pauseRecording}
         onResume={resumeRecording}
-        onReset={resetRecording}
       />
 
       {micError && (
