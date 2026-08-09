@@ -13,6 +13,60 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
+  /* Couleurs primaires */
+  --color-primary:        #2C5F8A;
+  --color-primary-hover:  #1E4A6E;
+  --color-primary-light:  #E3F2FD;
+
+  /* Couleurs sémantiques */
+  --color-success:        #0A4A25;
+  --color-success-bg:     #D6F5E3;
+  --color-success-border: #A7F3D0;
+
+  --color-error:          #B91C1C;
+  --color-error-bg:       #FEF2F2;
+  --color-error-border:   #FECACA;
+
+  --color-warning:        #7A4A00;
+  --color-warning-bg:     #FFF3CD;
+  --color-warning-border: #FDE68A;
+
+  --color-info:           #1E3A5F;
+  --color-info-bg:        #E0EAF5;
+  --color-info-border:    #BFDBFE;
+
+  /* Couleurs neutres */
+  --color-surface:        #F4F6FB;
+  --color-muted:          #6B7280;
+  --color-muted-light:    #9CA3AF;
+
+  /* Typographie */
+  --font-size-xs:   0.75rem;
+  --font-size-sm:   0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg:   1.125rem;
+  --font-size-xl:   1.25rem;
+  --font-size-2xl:  1.5rem;
+  --font-size-3xl:  1.875rem;
+
+  --font-weight-normal:   400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+
+  --line-height-tight:  1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.65;
+
+  /* Espacements */
+  --radius-sm:  6px;
+  --radius-md:  8px;
+  --radius-lg:  10px;
+  --radius-xl:  12px;
+  --radius-full: 9999px;
+
+  /* Touch targets mobile */
+  --touch-target: 44px;
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
