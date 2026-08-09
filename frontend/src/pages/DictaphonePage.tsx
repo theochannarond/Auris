@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
-// @ts-ignore
 import Dictaphone from "../components/ui/Dictaphone";
+
+const MAX_RETRIES = 3;
 
 function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
@@ -24,9 +25,12 @@ export default function DictaphonePage() {
   } = useAudioRecorder();
 
   const [meetingId, setMeetingId] = useState<string | null>(null);
+  const [, setTranscriptionId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
   const [error, setError] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   const handleStart = async () => {
     setError("");
@@ -54,10 +58,9 @@ export default function DictaphonePage() {
   const handleUpload = async () => {
     if (!audioBlob || !meetingId) return;
     setUploading(true);
-    setError("");
+    setUploadError("");
 
     try {
-      // 3. Upload audio vers OVH
       const formData = new FormData();
       formData.append("file", audioBlob, "recording.wav");
 
@@ -65,18 +68,26 @@ export default function DictaphonePage() {
         method: "POST",
         body: formData
       });
-      if (!uploadRes.ok) throw new Error("Erreur lors de l'upload");
+      if (!uploadRes.ok) throw new Error();
 
-      // 4. Mettre à jour le statut → processing
       await fetch(`/api/v1/meetings/${meetingId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "processing" })
       });
 
+      const transcriptionRes = await fetch("/api/v1/transcriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meeting_id: meetingId })
+      });
+      if (!transcriptionRes.ok) throw new Error("Erreur au lancement de la transcription");
+      const transcription = await transcriptionRes.json();
+      setTranscriptionId(transcription.id);
       setUploaded(true);
+      setRetryCount(0);
     } catch {
-      setError("Erreur lors de l'envoi de l'enregistrement.");
+      setUploadError("Échec de l'envoi de l'audio. Vérifiez votre connexion et réessayez.");
     } finally {
       setUploading(false);
     }
@@ -165,6 +176,31 @@ export default function DictaphonePage() {
               {uploading ? "Envoi en cours..." : "Envoyer pour transcription"}
             </button>
           </div>
+
+          {/* Erreur d'upload avec retry */}
+          {uploadError && (
+            <div style={{ marginTop: "16px", textAlign: "center" }}>
+              <p style={{ color: "#B91C1C", fontSize: "0.9rem", marginBottom: "8px" }}>
+                {uploadError}
+              </p>
+              {retryCount < MAX_RETRIES ? (
+                <button
+                  onClick={() => { setRetryCount(c => c + 1); handleUpload(); }}
+                  style={{
+                    padding: "8px 20px", borderRadius: "8px",
+                    border: "1px solid #B91C1C", background: "white",
+                    color: "#B91C1C", cursor: "pointer", fontSize: "0.9rem"
+                  }}
+                >
+                  Réessayer ({MAX_RETRIES - retryCount} tentative{MAX_RETRIES - retryCount > 1 ? "s" : ""} restante{MAX_RETRIES - retryCount > 1 ? "s" : ""})
+                </button>
+              ) : (
+                <p style={{ color: "#B91C1C", fontSize: "0.85rem" }}>
+                  Échec après {MAX_RETRIES} tentatives. Contactez le support.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -186,7 +222,7 @@ export default function DictaphonePage() {
             La transcription va démarrer automatiquement.
           </p>
           <button
-            onClick={() => { resetRecording(); setUploaded(false); setMeetingId(null); }}
+            onClick={() => { resetRecording(); setUploaded(false); setMeetingId(null); setTranscriptionId(null); }}
             style={{
               marginTop: "16px", padding: "10px 24px",
               borderRadius: "8px", border: "none",
@@ -199,7 +235,7 @@ export default function DictaphonePage() {
         </div>
       )}
 
-      {/* Erreur */}
+      {/* Erreur de création de réunion */}
       {error && (
         <p style={{ color: "#B91C1C", marginTop: "16px", fontSize: "0.9rem" }}>
           {error}
