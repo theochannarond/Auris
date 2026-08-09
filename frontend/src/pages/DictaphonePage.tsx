@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
+import { useTranscriptionStatus } from "../hooks/useTranscriptionStatus";
 import Dictaphone from "../components/ui/Dictaphone";
 import Spinner from "../components/Spinner";
 import ProgressBar from "../components/ProgressBar";
+import TranscriptionProgress from "../components/ui/TranscriptionProgress";
 
 const MAX_RETRIES = 3;
 
@@ -13,11 +15,6 @@ function formatDuration(seconds: number): string {
 }
 
 export default function DictaphonePage() {
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
-  // @ts-ignore
   const {
     isRecording,
     isPaused,
@@ -32,12 +29,18 @@ export default function DictaphonePage() {
   } = useAudioRecorder();
 
   const [meetingId, setMeetingId] = useState<string | null>(null);
-  const [, setTranscriptionId] = useState<string | null>(null);
+  const [transcriptionId, setTranscriptionId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
   const [error, setError] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
+
+  const {
+    status: transcriptionStatus,
+    processingMs,
+    errorMessage,
+  } = useTranscriptionStatus(transcriptionId);
 
   const handleStart = async () => {
     setError("");
@@ -98,8 +101,8 @@ export default function DictaphonePage() {
     }
   };
 
-  // @ts-ignore
-  // @ts-ignore
+  const isBusy = uploading || transcriptionStatus === "processing";
+
   return (
     <div style={{
       display: "flex",
@@ -157,12 +160,12 @@ export default function DictaphonePage() {
           <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
             <button
               onClick={resetRecording}
-              disabled={uploading}
+              disabled={isBusy}
               style={{
                 padding: "10px 24px", borderRadius: "8px",
                 border: "1px solid #D1D5DB", background: "white",
                 color: "#374151",
-                cursor: uploading ? "not-allowed" : "pointer",
+                cursor: isBusy ? "not-allowed" : "pointer",
                 fontSize: "0.9rem"
               }}
             >
@@ -170,13 +173,13 @@ export default function DictaphonePage() {
             </button>
             <button
               onClick={handleUpload}
-              disabled={uploading}
+              disabled={isBusy}
               style={{
                 padding: "10px 24px", borderRadius: "8px",
                 border: "none",
-                backgroundColor: uploading ? "#9CA3AF" : "#2C5F8A",
+                backgroundColor: isBusy ? "#9CA3AF" : "#2C5F8A",
                 color: "white",
-                cursor: uploading ? "not-allowed" : "pointer",
+                cursor: isBusy ? "not-allowed" : "pointer",
                 fontSize: "0.9rem",
                 display: "flex", alignItems: "center", gap: "8px",
                 justifyContent: "center"
@@ -216,6 +219,15 @@ export default function DictaphonePage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Suivi du statut de la transcription */}
+      {transcriptionId && (
+        <TranscriptionProgress
+          status={transcriptionStatus}
+          processingMs={processingMs}
+          errorMessage={errorMessage}
+        />
       )}
 
       {uploaded && (
