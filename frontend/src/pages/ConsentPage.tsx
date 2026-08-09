@@ -1,4 +1,6 @@
 import { useState } from "react";
+import Button from "../components/ui/Button";
+
 
 interface ConsentPageProps {
   onConsent: () => void;
@@ -59,13 +61,14 @@ export default function ConsentPage({ onConsent }: ConsentPageProps) {
         </span>
       </label>
 
-      <button
+      <Button
         onClick={handleConsent}
         disabled={!checked || loading}
-        className={`${checked ? "bg-[#2C5F8A]" : "bg-gray-400"} text-white border-none px-12 py-3 rounded-lg text-base min-h-[44px] w-full sm:w-auto cursor-pointer disabled:cursor-not-allowed transition-colors duration-200`}
+        loading={loading}
+        fullWidth
       >
         {loading ? "Enregistrement..." : "Confirmer mon consentement"}
-      </button>
+      </Button>
 
       <p className="mt-4 text-xs text-gray-400 text-center">
         Conformément au RGPD Art. 7 et Art. 9 — Données hébergées EU
