@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
+import { useTranscriptionStatus } from "../hooks/useTranscriptionStatus";
 import Dictaphone from "../components/ui/Dictaphone";
+import TranscriptionProgress from "../components/ui/TranscriptionProgress";
 
 const MAX_RETRIES = 3;
 
@@ -25,18 +27,20 @@ export default function DictaphonePage() {
   } = useAudioRecorder();
 
   const [meetingId, setMeetingId] = useState<string | null>(null);
-  const [, setTranscriptionId] = useState<string | null>(null);
+  const [transcriptionId, setTranscriptionId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploaded, setUploaded] = useState(false);
   const [error, setError] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
 
+  const { status: transcriptionStatus, processingMs, errorMessage } =
+    useTranscriptionStatus(transcriptionId);
+
   const handleStart = async () => {
     setError("");
     setUploaded(false);
 
-    // 1. Créer la réunion en base
     try {
       const res = await fetch("/api/v1/meetings", {
         method: "POST",
@@ -51,7 +55,6 @@ export default function DictaphonePage() {
       return;
     }
 
-    // 2. Démarrer l'enregistrement
     await startRecording();
   };
 
@@ -94,21 +97,12 @@ export default function DictaphonePage() {
   };
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      minHeight: "100vh",
-      fontFamily: "Arial, sans-serif",
-      padding: "32px 24px"
-    }}>
-      <h1 style={{ fontSize: "2rem", marginBottom: "8px" }}>Auris</h1>
-      <h2 style={{ fontSize: "1.1rem", color: "#6B7280", marginBottom: "40px" }}>
+    <div className="flex flex-col items-center justify-center min-h-screen font-sans px-6 py-8">
+      <h1 className="text-3xl mb-2">Auris</h1>
+      <h2 className="text-lg text-gray-500 mb-10">
         Mode dictaphone
       </h2>
 
-      {/* Composant dictaphone */}
       <Dictaphone
         isRecording={isRecording}
         isPaused={isPaused}
@@ -122,55 +116,36 @@ export default function DictaphonePage() {
 
       {/* Erreur d'accès micro */}
       {micError && (
-        <p style={{ color: "#B91C1C", fontSize: "0.9rem", marginTop: "16px", textAlign: "center" }}>
+        <p className="text-[#B91C1C] text-sm mt-4 text-center">
           {micError}
         </p>
       )}
 
-      {/* Preview audio — affiché après arrêt */}
+      {/* Preview audio */}
       {audioBlob && !uploaded && (
-        <div style={{
-          marginTop: "32px",
-          padding: "24px",
-          background: "#F4F6FB",
-          borderRadius: "12px",
-          width: "100%",
-          maxWidth: "480px",
-          textAlign: "center"
-        }}>
-          <p style={{ color: "#374151", marginBottom: "16px", fontWeight: "500" }}>
+        <div className="mt-8 p-6 bg-[#F4F6FB] rounded-xl w-full max-w-[480px] text-center">
+          <p className="text-gray-700 mb-4 font-medium">
             Aperçu de votre enregistrement
           </p>
           <audio
             controls
             src={URL.createObjectURL(audioBlob)}
-            style={{ width: "100%", marginBottom: "20px" }}
+            className="w-full mb-5"
           />
-          <p style={{ color: "#6B7280", fontSize: "0.85rem", marginBottom: "20px" }}>
+          <p className="text-gray-500 text-sm mb-5">
             Durée : {formatDuration(duration)}
           </p>
-          <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+          <div className="flex gap-3 justify-center flex-wrap">
             <button
               onClick={resetRecording}
-              style={{
-                padding: "10px 24px", borderRadius: "8px",
-                border: "1px solid #D1D5DB", background: "white",
-                color: "#374151", cursor: "pointer", fontSize: "0.9rem"
-              }}
+              className="px-6 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 cursor-pointer text-sm min-h-[44px]"
             >
               Recommencer
             </button>
             <button
               onClick={handleUpload}
               disabled={uploading}
-              style={{
-                padding: "10px 24px", borderRadius: "8px",
-                border: "none",
-                background: uploading ? "#9CA3AF" : "#2C5F8A",
-                color: "white",
-                cursor: uploading ? "not-allowed" : "pointer",
-                fontSize: "0.9rem"
-              }}
+              className={`px-6 py-2.5 rounded-lg border-none text-white text-sm min-h-[44px] cursor-pointer disabled:cursor-not-allowed ${uploading ? "bg-gray-400" : "bg-[#2C5F8A]"}`}
             >
               {uploading ? "Envoi en cours..." : "Envoyer pour transcription"}
             </button>
@@ -178,23 +153,17 @@ export default function DictaphonePage() {
 
           {/* Erreur d'upload avec retry */}
           {uploadError && (
-            <div style={{ marginTop: "16px", textAlign: "center" }}>
-              <p style={{ color: "#B91C1C", fontSize: "0.9rem", marginBottom: "8px" }}>
-                {uploadError}
-              </p>
+            <div className="mt-4 text-center">
+              <p className="text-[#B91C1C] text-sm mb-2">{uploadError}</p>
               {retryCount < MAX_RETRIES ? (
                 <button
                   onClick={() => { setRetryCount(c => c + 1); handleUpload(); }}
-                  style={{
-                    padding: "8px 20px", borderRadius: "8px",
-                    border: "1px solid #B91C1C", background: "white",
-                    color: "#B91C1C", cursor: "pointer", fontSize: "0.9rem"
-                  }}
+                  className="px-5 py-2 rounded-lg border border-[#B91C1C] bg-white text-[#B91C1C] cursor-pointer text-sm"
                 >
                   Réessayer ({MAX_RETRIES - retryCount} tentative{MAX_RETRIES - retryCount > 1 ? "s" : ""} restante{MAX_RETRIES - retryCount > 1 ? "s" : ""})
                 </button>
               ) : (
-                <p style={{ color: "#B91C1C", fontSize: "0.85rem" }}>
+                <p className="text-[#B91C1C] text-sm">
                   Échec après {MAX_RETRIES} tentatives. Contactez le support.
                 </p>
               )}
@@ -205,38 +174,36 @@ export default function DictaphonePage() {
 
       {/* Confirmation upload */}
       {uploaded && (
-        <div style={{
-          marginTop: "32px",
-          padding: "24px",
-          background: "#D6F5E3",
-          borderRadius: "12px",
-          textAlign: "center",
-          maxWidth: "480px",
-          width: "100%"
-        }}>
-          <p style={{ color: "#0A4A25", fontWeight: "500", fontSize: "1.1rem" }}>
+        <div className="mt-8 p-6 bg-[#D6F5E3] rounded-xl text-center max-w-[480px] w-full">
+          <p className="text-[#0A4A25] font-medium text-lg">
             ✓ Enregistrement envoyé avec succès
           </p>
-          <p style={{ color: "#0A4A25", fontSize: "0.9rem", marginTop: "8px" }}>
-            La transcription va démarrer automatiquement.
-          </p>
           <button
-            onClick={() => { resetRecording(); setUploaded(false); setMeetingId(null); setTranscriptionId(null); }}
-            style={{
-              marginTop: "16px", padding: "10px 24px",
-              borderRadius: "8px", border: "none",
-              background: "#0A4A25", color: "white",
-              cursor: "pointer", fontSize: "0.9rem"
+            onClick={() => {
+              resetRecording();
+              setUploaded(false);
+              setMeetingId(null);
+              setTranscriptionId(null);
             }}
+            className="mt-4 px-6 py-2.5 rounded-lg border-none bg-[#0A4A25] text-white cursor-pointer text-sm min-h-[44px]"
           >
             Nouvelle réunion
           </button>
         </div>
       )}
 
-      {/* Erreur de création de réunion */}
+      {/* Progression transcription */}
+      {uploaded && (
+        <TranscriptionProgress
+          status={transcriptionStatus}
+          processingMs={processingMs}
+          errorMessage={errorMessage}
+        />
+      )}
+
+      {/* Erreur création réunion */}
       {error && (
-        <p style={{ color: "#B91C1C", marginTop: "16px", fontSize: "0.9rem" }}>
+        <p className="text-[#B91C1C] mt-4 text-sm">
           {error}
         </p>
       )}
