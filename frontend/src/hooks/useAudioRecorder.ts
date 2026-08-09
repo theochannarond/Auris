@@ -63,13 +63,13 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
     } catch (error) {
       if (error instanceof DOMException && error.name === "NotAllowedError") {
         setMicError(
-          "L'acces au microphone a ete refuse. Autorisez-le dans les parametres de votre navigateur, puis rafraichissez la page."
+          "L'accès au microphone a été refusé. Autorisez-le dans les paramètres de votre navigateur, puis rafraîchissez la page."
         );
       } else {
-        setMicError("Impossible d'acceder au microphone.");
+        setMicError("Impossible d'accéder au microphone.");
       }
     }
-  }, []);
+  }, []); 
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
