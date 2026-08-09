@@ -1,4 +1,6 @@
 import { useState } from "react";
+import Button from "../components/ui/Button";
+
 
 interface ConsentPageProps {
   onConsent: () => void;
@@ -28,34 +30,18 @@ export default function ConsentPage({ onConsent }: ConsentPageProps) {
   };
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      height: "100vh",
-      fontFamily: "Arial, sans-serif",
-      padding: "0 24px",
-      maxWidth: "600px",
-      margin: "0 auto"
-    }}>
-      <h1 style={{ fontSize: "2rem", marginBottom: "8px" }}>Auris</h1>
-      <h2 style={{ fontSize: "1.2rem", color: "#6B7280", marginBottom: "32px" }}>
+    <div className="flex flex-col items-center justify-center min-h-screen font-sans px-6 py-8 max-w-[600px] mx-auto">
+      <h1 className="text-3xl mb-2">Auris</h1>
+      <h2 className="text-xl text-gray-500 mb-8 text-center">
         Consentement RGPD
       </h2>
 
-      <div style={{
-        background: "#F4F6FB",
-        borderRadius: "12px",
-        padding: "24px",
-        marginBottom: "32px",
-        width: "100%"
-      }}>
-        <p style={{ marginBottom: "16px", lineHeight: "1.6" }}>
+      <div className="bg-[#F4F6FB] rounded-xl p-6 mb-8 w-full">
+        <p className="mb-4 leading-relaxed">
           En utilisant Auris, vous acceptez que vos données audio soient
           traitées pour générer un compte-rendu de réunion.
         </p>
-        <ul style={{ paddingLeft: "20px", lineHeight: "2" }}>
+        <ul className="pl-5 space-y-2 leading-relaxed list-disc">
           <li>Vos données restent hébergées en Union Européenne</li>
           <li>Elles ne sont jamais utilisées pour réentraîner des modèles</li>
           <li>Vous pouvez demander leur suppression à tout moment</li>
@@ -63,42 +49,28 @@ export default function ConsentPage({ onConsent }: ConsentPageProps) {
         </ul>
       </div>
 
-      <label style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "12px",
-        marginBottom: "24px",
-        cursor: "pointer"
-      }}>
+      <label className="flex items-center gap-3 mb-6 cursor-pointer min-h-[44px] w-full">
         <input
           type="checkbox"
           checked={checked}
           onChange={(e) => setChecked(e.target.checked)}
-          style={{ width: "18px", height: "18px" }}
+          className="w-[18px] h-[18px] flex-shrink-0"
         />
         <span>
           J'ai lu et j'accepte les conditions de traitement de mes données
         </span>
       </label>
 
-      <button
+      <Button
         onClick={handleConsent}
         disabled={!checked || loading}
-        style={{
-          backgroundColor: checked ? "#2C5F8A" : "#9CA3AF",
-          color: "white",
-          border: "none",
-          padding: "12px 48px",
-          borderRadius: "8px",
-          fontSize: "1rem",
-          cursor: checked && !loading ? "pointer" : "not-allowed",
-          transition: "background-color 0.2s"
-        }}
+        loading={loading}
+        fullWidth
       >
         {loading ? "Enregistrement..." : "Confirmer mon consentement"}
-      </button>
+      </Button>
 
-      <p style={{ marginTop: "16px", fontSize: "0.75rem", color: "#9CA3AF" }}>
+      <p className="mt-4 text-xs text-gray-400 text-center">
         Conformément au RGPD Art. 7 et Art. 9 — Données hébergées EU
       </p>
     </div>

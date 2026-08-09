@@ -3,6 +3,7 @@ import { useAudioRecorder } from "../hooks/useAudioRecorder";
 import { useTranscriptionStatus } from "../hooks/useTranscriptionStatus";
 import Dictaphone from "../components/ui/Dictaphone";
 import TranscriptionProgress from "../components/ui/TranscriptionProgress";
+import Button from "../components/ui/Button";
 
 const MAX_RETRIES = 3;
 
@@ -136,19 +137,16 @@ export default function DictaphonePage() {
             Durée : {formatDuration(duration)}
           </p>
           <div className="flex gap-3 justify-center flex-wrap">
-            <button
-              onClick={resetRecording}
-              className="px-6 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 cursor-pointer text-sm min-h-[44px]"
-            >
+            <Button variant="secondary" onClick={resetRecording}>
               Recommencer
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleUpload}
               disabled={uploading}
-              className={`px-6 py-2.5 rounded-lg border-none text-white text-sm min-h-[44px] cursor-pointer disabled:cursor-not-allowed ${uploading ? "bg-gray-400" : "bg-[#2C5F8A]"}`}
+              loading={uploading}
             >
               {uploading ? "Envoi en cours..." : "Envoyer pour transcription"}
-            </button>
+            </Button>
           </div>
 
           {/* Erreur d'upload avec retry */}
@@ -178,17 +176,17 @@ export default function DictaphonePage() {
           <p className="text-[#0A4A25] font-medium text-lg">
             ✓ Enregistrement envoyé avec succès
           </p>
-          <button
+          <Button
+            variant="primary"
             onClick={() => {
               resetRecording();
               setUploaded(false);
               setMeetingId(null);
               setTranscriptionId(null);
             }}
-            className="mt-4 px-6 py-2.5 rounded-lg border-none bg-[#0A4A25] text-white cursor-pointer text-sm min-h-[44px]"
           >
             Nouvelle réunion
-          </button>
+          </Button>
         </div>
       )}
 

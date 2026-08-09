@@ -69,7 +69,7 @@ export function useAudioRecorder(): UseAudioRecorderReturn {
         setMicError("Impossible d'accéder au microphone.");
       }
     }
-  }, []); 
+  }, []);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import Button from "../components/ui/Button";
+
 
 const KEYCLOAK_URL = import.meta.env.VITE_KEYCLOAK_URL || "http://localhost:8080";
 const KEYCLOAK_REALM = import.meta.env.VITE_KEYCLOAK_REALM || "auris";
@@ -20,35 +22,21 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      height: "100vh",
-      fontFamily: "Arial, sans-serif"
-    }}>
-      <h1 style={{ fontSize: "2.5rem", marginBottom: "8px" }}>Auris</h1>
-      <p style={{ color: "#6B7280", marginBottom: "40px" }}>
+    <div className="flex flex-col items-center justify-center min-h-screen font-sans px-6">
+      <h1 className="text-4xl mb-2">Auris</h1>
+      <p className="text-gray-500 mb-10 text-center">
         Assistant de réunion intelligent
       </p>
-      <button
+      <Button
         onClick={handleLogin}
         disabled={loading}
-        style={{
-          backgroundColor: "#2C5F8A",
-          color: "white",
-          border: "none",
-          padding: "12px 32px",
-          borderRadius: "8px",
-          fontSize: "1rem",
-          cursor: loading ? "not-allowed" : "pointer",
-          opacity: loading ? 0.7 : 1
-        }}
+        loading={loading}
+        fullWidth
+        size="lg"
       >
         {loading ? "Redirection..." : "Se connecter"}
-      </button>
-      <p style={{ marginTop: "24px", fontSize: "0.8rem", color: "#6B7280" }}>
+      </Button>
+      <p className="mt-6 text-sm text-gray-500 text-center">
         Authentification sécurisée via Keycloak
       </p>
     </div>
