@@ -1,23 +1,22 @@
 import { useState, useEffect } from "react";
 
 export interface MeetingListItem {
-  id: string;
-  title: string;
-  mode: string;
-  status: string;
+  id:           string;
+  title:        string;
+  mode:         string;
+  status:       string;
   duration_sec: number | null;
-  created_at: string;
-  theme: string | null;
-  tone: string | null;
+  created_at:   string;
+  theme:        string | null;
+  tone:         string | null;
 }
 
 export function useMeetings() {
   const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState("");
 
   useEffect(() => {
-    // Évite un setState après démontage si la réponse arrive trop tard
     let cancelled = false;
 
     const fetchMeetings = async () => {
@@ -34,11 +33,17 @@ export function useMeetings() {
     };
 
     fetchMeetings();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  return { meetings, loading, error };
+  const deleteMeeting = async (meetingId: string): Promise<string> => {
+    const res = await fetch(`/api/v1/meetings/${meetingId}`, {
+      method: "DELETE"
+    });
+    if (!res.ok) throw new Error("Suppression échouée");
+    setMeetings(prev => prev.filter(m => m.id !== meetingId));
+    return "Réunion supprimée conformément au RGPD Art. 17.";
+  };
+
+  return { meetings, loading, error, deleteMeeting };
 }
