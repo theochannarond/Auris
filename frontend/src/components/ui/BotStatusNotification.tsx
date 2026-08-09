@@ -5,14 +5,7 @@ interface BotStatusNotificationProps {
 export default function BotStatusNotification({ status }: BotStatusNotificationProps) {
   if (!status || status === "pending") {
     return (
-      <div style={{
-        padding: "12px 20px",
-        borderRadius: "8px",
-        background: "#FFF3CD",
-        color: "#7A4A00",
-        fontSize: "0.9rem",
-        marginTop: "16px"
-      }}>
+      <div className="px-5 py-3 rounded-lg bg-[#FFF3CD] text-[#7A4A00] text-sm mt-4">
         ⏳ En attente que le bot rejoigne la réunion...
       </div>
     );
@@ -20,15 +13,7 @@ export default function BotStatusNotification({ status }: BotStatusNotificationP
 
   if (status === "recording") {
     return (
-      <div style={{
-        padding: "12px 20px",
-        borderRadius: "8px",
-        background: "#D6F5E3",
-        color: "#0A4A25",
-        fontSize: "0.9rem",
-        marginTop: "16px",
-        fontWeight: "500"
-      }}>
+      <div className="px-5 py-3 rounded-lg bg-[#D6F5E3] text-[#0A4A25] text-sm mt-4 font-medium">
         ✓ Le bot Auris a rejoint la réunion — enregistrement en cours
       </div>
     );
@@ -36,14 +21,7 @@ export default function BotStatusNotification({ status }: BotStatusNotificationP
 
   if (status === "failed") {
     return (
-      <div style={{
-        padding: "12px 20px",
-        borderRadius: "8px",
-        background: "#FAD7D7",
-        color: "#7A0A0A",
-        fontSize: "0.9rem",
-        marginTop: "16px"
-      }}>
+      <div className="px-5 py-3 rounded-lg bg-[#FAD7D7] text-[#7A0A0A] text-sm mt-4">
         ✗ Le bot n'a pas pu rejoindre la réunion. Vérifiez le lien et réessayez.
       </div>
     );

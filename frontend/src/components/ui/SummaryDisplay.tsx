@@ -1,3 +1,5 @@
+import Badge from "./Badge";
+
 interface SummaryDisplayProps {
   content:      string;
   decisions:    string[] | null;
@@ -20,72 +22,32 @@ export default function SummaryDisplay({
   processingMs
 }: SummaryDisplayProps) {
   return (
-    <div style={{ width: "100%", maxWidth: "680px", margin: "0 auto" }}>
+    <div className="w-full max-w-[680px] mx-auto">
 
       {/* Badges thème + ton */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "20px", flexWrap: "wrap" }}>
-        {theme && (
-          <span style={{
-            padding: "4px 12px", borderRadius: "99px",
-            fontSize: "0.8rem", fontWeight: 600,
-            background: "#E3F2FD", color: "#0D3B7A",
-            border: "1px solid #1565C0"
-          }}>
-            📋 {theme}
-          </span>
-        )}
-        {tone && (
-          <span style={{
-            padding: "4px 12px", borderRadius: "99px",
-            fontSize: "0.8rem", fontWeight: 600,
-            background: "#F3E5F5", color: "#3D0D5C",
-            border: "1px solid #6A1B9A"
-          }}>
-            🎯 {tone}
-          </span>
-        )}
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {theme && <Badge label={`📋 ${theme}`} variant="primary" />}
+        {tone && <Badge label={`🎯 ${tone}`} variant="info" />}
         {processingMs != null && (
-          <span style={{
-            padding: "4px 12px", borderRadius: "99px",
-            fontSize: "0.8rem",
-            background: "#F4F6FB", color: "#6B7280",
-            border: "1px solid #D1D5DB"
-          }}>
-            ⚡ Généré en {formatSeconds(processingMs)}
-          </span>
+          <Badge label={`⚡ Généré en ${formatSeconds(processingMs)}`} variant="neutral" />
         )}
       </div>
 
       {/* Résumé narratif */}
-      <div style={{
-        padding: "20px", borderRadius: "10px",
-        background: "#F4F6FB", marginBottom: "20px",
-        borderLeft: "4px solid #2C5F8A"
-      }}>
-        <h3 style={{ margin: "0 0 12px 0", fontSize: "0.95rem", color: "#2C5F8A" }}>
-          Résumé
-        </h3>
-        <p style={{ margin: 0, lineHeight: "1.65", color: "#1C1C1C", fontSize: "0.9rem" }}>
+      <div className="p-5 rounded-xl bg-[#F4F6FB] mb-5 border-l-4 border-[#2C5F8A]">
+        <h3 className="text-sm text-[#2C5F8A] mb-3 font-medium">Résumé</h3>
+        <p className="text-sm text-[#1C1C1C] leading-relaxed m-0">
           {content}
         </p>
       </div>
 
       {/* Décisions */}
       {decisions && decisions.length > 0 && (
-        <div style={{
-          padding: "20px", borderRadius: "10px",
-          background: "#E8F5E9", marginBottom: "16px",
-          borderLeft: "4px solid #2E7D32"
-        }}>
-          <h3 style={{ margin: "0 0 12px 0", fontSize: "0.95rem", color: "#1B5E20" }}>
-            ✓ Décisions prises
-          </h3>
-          <ul style={{ margin: 0, paddingLeft: "20px" }}>
+        <div className="p-5 rounded-xl bg-[#E8F5E9] mb-4 border-l-4 border-[#2E7D32]">
+          <h3 className="text-sm text-[#1B5E20] mb-3 font-medium">✓ Décisions prises</h3>
+          <ul className="m-0 pl-5">
             {decisions.map((d, i) => (
-              <li key={i} style={{
-                fontSize: "0.9rem", color: "#1C1C1C",
-                lineHeight: "1.6", marginBottom: "4px"
-              }}>
+              <li key={i} className="text-sm text-[#1C1C1C] leading-relaxed mb-1">
                 {d}
               </li>
             ))}
@@ -95,27 +57,17 @@ export default function SummaryDisplay({
 
       {/* Actions */}
       {action_items && action_items.length > 0 && (
-        <div style={{
-          padding: "20px", borderRadius: "10px",
-          background: "#FFF3E0",
-          borderLeft: "4px solid #E65100"
-        }}>
-          <h3 style={{ margin: "0 0 12px 0", fontSize: "0.95rem", color: "#7A2D00" }}>
-            → Actions à réaliser
-          </h3>
-          <ul style={{ margin: 0, paddingLeft: "20px" }}>
+        <div className="p-5 rounded-xl bg-[#FFF3E0] border-l-4 border-[#E65100]">
+          <h3 className="text-sm text-[#7A2D00] mb-3 font-medium">→ Actions à réaliser</h3>
+          <ul className="m-0 pl-5">
             {action_items.map((a, i) => (
-              <li key={i} style={{
-                fontSize: "0.9rem", color: "#1C1C1C",
-                lineHeight: "1.6", marginBottom: "4px"
-              }}>
+              <li key={i} className="text-sm text-[#1C1C1C] leading-relaxed mb-1">
                 {a}
               </li>
             ))}
           </ul>
         </div>
       )}
-
     </div>
   );
 }
