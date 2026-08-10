@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+
+# Un nouveau push sur une PR annule le run précédent, encore en cours pour rien
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Tests backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Même version que backend/Dockerfile : les versions épinglées dans
+      # requirements.txt n'ont pas de roue pour 3.13 et la compilation échoue
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: pytest
+        env:
+          # app/core/database.py instancie l'engine dès l'import : sans une URL
+          # exploitable, la collecte échoue avant le premier test faute de
+          # serveur Postgres. La suite monte sa propre base SQLite (conftest.py).
+          DATABASE_URL: sqlite:///./test.db
+        run: pytest -q
+
+  e2e:
+    name: Tests E2E
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      # Le binaire du navigateur ne vit pas dans node_modules : il faut le
+      # télécharger séparément, avec ses dépendances système
+      - name: Installer Chromium
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts démarre Vite tout seul via son bloc webServer
+      - name: Playwright
+        run: npx playwright test
+
+      - name: Conserver le rapport
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
