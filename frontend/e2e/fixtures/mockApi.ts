@@ -59,6 +59,116 @@ export async function mockCreateMeeting(page: Page) {
   })
 }
 
+export const TRANSCRIPTION_ID = '44444444-4444-4444-4444-444444444444'
+
+/** Upload de l'audio et passage de la réunion en "processing". */
+export async function mockAudioUpload(page: Page) {
+  await page.route('**/api/v1/meetings/*/audio', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: MEETING_ID, status: 'pending' }),
+    })
+  )
+
+  await page.route('**/api/v1/meetings/*/status', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: MEETING_ID, status: 'processing' }),
+    })
+  )
+}
+
+/** Lancement de la transcription. */
+export async function mockTranscriptionStart(page: Page) {
+  await page.route('**/api/v1/transcriptions', (route) =>
+    route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: TRANSCRIPTION_ID, meeting_id: MEETING_ID, status: 'processing' }),
+    })
+  )
+}
+
+/**
+ * Polling du statut de transcription.
+ *
+ * Consomme la liste fournie appel après appel, puis reste sur la dernière
+ * valeur : c'est ce qui permet de rejouer une vraie progression
+ * processing → completed sans dépendre du nombre exact de sondages.
+ */
+export async function mockTranscriptionStatus(page: Page, sequence: string[]) {
+  let call = 0
+
+  await page.route('**/api/v1/transcriptions/*/status', (route) => {
+    const status = sequence[Math.min(call, sequence.length - 1)]
+    call += 1
+
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: TRANSCRIPTION_ID,
+        meeting_id: MEETING_ID,
+        status,
+        processing_ms: status === 'completed' ? 4200 : null,
+        error_message: null,
+      }),
+    })
+  })
+}
+
+export const TRANSCRIPTION_TEXT =
+  'Bonjour à tous. Nous ouvrons la réunion sur le suivi du trimestre.'
+
+/** Détail d'une réunion — la charge utile de GET /api/v1/meetings/{id}. */
+export function meetingDetail(overrides: Record<string, unknown> = {}) {
+  return {
+    id: MEETING_ID,
+    title: 'Réunion du 11/08/2026',
+    mode: 'dictaphone',
+    status: 'completed',
+    meeting_link: null,
+    started_at: null,
+    ended_at: null,
+    duration_sec: 185,
+    created_at: '2026-08-11T09:00:00',
+    transcription: {
+      id: TRANSCRIPTION_ID,
+      status: 'completed',
+      raw_text: TRANSCRIPTION_TEXT,
+      diarization: [
+        { speaker: 'Locuteur 1', start: 0, end: 12, text: 'Bonjour à tous.' },
+        { speaker: 'Locuteur 2', start: 12, end: 30, text: 'Le trimestre est en avance.' },
+      ],
+      language: 'fr',
+      processing_ms: 4200,
+    },
+    summary: null,
+    ...overrides,
+  }
+}
+
+/**
+ * Détail d'une réunion.
+ *
+ * Le motif s'arrête à un seul segment : dans la glob Playwright, `*` ne
+ * traverse pas les `/`, donc les sous-routes comme .../audio ne sont pas
+ * attrapées ici.
+ */
+export async function mockMeetingDetail(page: Page, detail = meetingDetail()) {
+  await page.route('**/api/v1/meetings/*', (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(detail),
+    })
+  })
+}
+
 /** Enregistrement du consentement RGPD. */
 export async function mockConsent(page: Page) {
   await page.route('**/api/v1/consents', (route) =>
