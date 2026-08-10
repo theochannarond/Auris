@@ -119,6 +119,49 @@ export async function mockTranscriptionStatus(page: Page, sequence: string[]) {
   })
 }
 
+/** Réunion telle qu'affichée sur une carte du dashboard. */
+export function meetingListItem(overrides: Record<string, unknown> = {}) {
+  return {
+    id: MEETING_ID,
+    title: 'Point trimestriel',
+    mode: 'dictaphone',
+    status: 'completed',
+    duration_sec: 185,
+    created_at: '2026-08-11T09:00:00',
+    theme: 'Suivi de projet',
+    tone: 'formal',
+    ...overrides,
+  }
+}
+
+/** Historique des réunions — GET /api/v1/meetings. */
+export async function mockMeetingsList(page: Page, items = [meetingListItem()]) {
+  await page.route('**/api/v1/meetings', (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(items),
+    })
+  })
+}
+
+/** Compte rendu généré par Mistral. */
+export function summary(overrides: Record<string, unknown> = {}) {
+  return {
+    id: '55555555-5555-5555-5555-555555555555',
+    content: "L'équipe a fait le point sur l'avancement du trimestre.",
+    decisions: ['Décaler la livraison au 15 septembre'],
+    action_items: ['Marc rédige la note de cadrage'],
+    tone: 'formal',
+    theme: 'Suivi de projet',
+    processing_ms: 3100,
+    created_at: '2026-08-11T09:05:00',
+    ...overrides,
+  }
+}
+
 export const TRANSCRIPTION_TEXT =
   'Bonjour à tous. Nous ouvrons la réunion sur le suivi du trimestre.'
 
