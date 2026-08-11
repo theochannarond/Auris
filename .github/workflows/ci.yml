@@ -34,10 +34,8 @@ jobs:
 
       - name: pytest
         env:
-          # app/core/database.py instancie l'engine dès l'import : sans une URL
-          # exploitable, la collecte échoue avant le premier test faute de
-          # serveur Postgres. La suite monte sa propre base SQLite (conftest.py).
           DATABASE_URL: sqlite:///./test.db
+          PYTHONPATH: .
         run: pytest -q
 
   e2e:
