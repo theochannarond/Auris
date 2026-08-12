@@ -272,6 +272,40 @@ export function meetingDetail(overrides: Record<string, unknown> = {}) {
   }
 }
 
+export const VIDEO_TRANSCRIPTION_TEXT =
+  'Bonjour à tous, merci d\'être présents. Nous ouvrons le comité de pilotage.'
+
+/**
+ * Détail d'une réunion vidéo.
+ *
+ * La diarisation porte ici des noms de participants, là où le dictaphone ne
+ * distingue que « Locuteur 1 » et « Locuteur 2 » : le bot est identifié dans
+ * la conférence et reçoit les noms déclarés par les participants. C'est la
+ * différence visible la plus nette entre les deux modes.
+ */
+export function videoMeetingDetail(overrides: Record<string, unknown> = {}) {
+  return meetingDetail({
+    id:           VIDEO_MEETING_ID,
+    title:        'Comité de pilotage',
+    mode:         'video',
+    meeting_link: MEETING_LINK,
+    duration_sec: 2730,
+    transcription: {
+      id:            TRANSCRIPTION_ID,
+      status:        'completed',
+      raw_text:      VIDEO_TRANSCRIPTION_TEXT,
+      diarization: [
+        { speaker: 'Sophie Marchand', start: 0,   end: 45,  text: 'Bonjour à tous, merci d\'être présents.' },
+        { speaker: 'Marc Lefèvre',    start: 45,  end: 92,  text: 'Le chantier de migration est terminé.' },
+        { speaker: 'Sophie Marchand', start: 92,  end: 130, text: 'Très bien, passons au budget.' },
+      ],
+      language:      'fr',
+      processing_ms: 8400,
+    },
+    ...overrides,
+  })
+}
+
 /**
  * Détail d'une réunion.
  *
