@@ -119,6 +119,85 @@ export async function mockTranscriptionStatus(page: Page, sequence: string[]) {
   })
 }
 
+// ─── Mode vidéo ───
+
+export const VIDEO_MEETING_ID = '77777777-7777-7777-7777-777777777777'
+export const MEETING_LINK     = 'https://meet.google.com/abc-defg-hij'
+
+/**
+ * Création d'une réunion vidéo — POST /api/v1/meetings/video.
+ *
+ * Le chemin porte un segment de plus que celui du dictaphone : le motif de
+ * mockCreateMeeting, qui s'arrête à « meetings », ne l'attrape pas.
+ *
+ * Le titre et le lien reçus sont renvoyés tels quels, comme le fait le
+ * backend : le test n'a pas à connaître d'avance ce qu'il a saisi.
+ */
+export async function mockCreateVideoMeeting(page: Page) {
+  await page.route('**/api/v1/meetings/video', (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+
+    const sent = route.request().postDataJSON() ?? {}
+
+    return route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: VIDEO_MEETING_ID,
+        owner_id: '33333333-3333-3333-3333-333333333333',
+        title: sent.title,
+        mode: 'video',
+        status: 'pending',
+        meeting_link: sent.meeting_link,
+        started_at: null,
+        ended_at: null,
+        duration_sec: null,
+        created_at: '2026-08-12T09:00:00',
+        updated_at: '2026-08-12T09:00:00',
+      }),
+    })
+  })
+}
+
+/** Échec de la création côté serveur, pour vérifier le message d'erreur. */
+export async function mockCreateVideoMeetingFailure(page: Page) {
+  await page.route('**/api/v1/meetings/video', (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+
+    return route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: 'Erreur interne' }),
+    })
+  })
+}
+
+/**
+ * Sondage du statut d'une réunion — GET /api/v1/meetings/{id}/status.
+ *
+ * Même principe que mockTranscriptionStatus : la liste est consommée appel
+ * après appel, puis la dernière valeur est répétée. useMeetingStatus interroge
+ * toutes les 3 s et cesse dès le premier statut final, ce qui rend le nombre
+ * de sondages imprévisible — d'où cette séquence plutôt qu'un compteur exact.
+ *
+ * Attention : mockAudioUpload pose une interception sur le même motif. Si les
+ * deux sont enregistrées, Playwright retient la dernière posée.
+ */
+export async function mockMeetingStatus(page: Page, sequence: string[]) {
+  let call = 0
+
+  await page.route('**/api/v1/meetings/*/status', (route) => {
+    const status = sequence[Math.min(call, sequence.length - 1)]
+    call += 1
+
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: VIDEO_MEETING_ID, status }),
+    })
+  })
+}
+
 /** Réunion telle qu'affichée sur une carte du dashboard. */
 export function meetingListItem(overrides: Record<string, unknown> = {}) {
   return {
