@@ -119,6 +119,85 @@ export async function mockTranscriptionStatus(page: Page, sequence: string[]) {
   })
 }
 
+// ─── Mode vidéo ───
+
+export const VIDEO_MEETING_ID = '77777777-7777-7777-7777-777777777777'
+export const MEETING_LINK     = 'https://meet.google.com/abc-defg-hij'
+
+/**
+ * Création d'une réunion vidéo — POST /api/v1/meetings/video.
+ *
+ * Le chemin porte un segment de plus que celui du dictaphone : le motif de
+ * mockCreateMeeting, qui s'arrête à « meetings », ne l'attrape pas.
+ *
+ * Le titre et le lien reçus sont renvoyés tels quels, comme le fait le
+ * backend : le test n'a pas à connaître d'avance ce qu'il a saisi.
+ */
+export async function mockCreateVideoMeeting(page: Page) {
+  await page.route('**/api/v1/meetings/video', (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+
+    const sent = route.request().postDataJSON() ?? {}
+
+    return route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: VIDEO_MEETING_ID,
+        owner_id: '33333333-3333-3333-3333-333333333333',
+        title: sent.title,
+        mode: 'video',
+        status: 'pending',
+        meeting_link: sent.meeting_link,
+        started_at: null,
+        ended_at: null,
+        duration_sec: null,
+        created_at: '2026-08-12T09:00:00',
+        updated_at: '2026-08-12T09:00:00',
+      }),
+    })
+  })
+}
+
+/** Échec de la création côté serveur, pour vérifier le message d'erreur. */
+export async function mockCreateVideoMeetingFailure(page: Page) {
+  await page.route('**/api/v1/meetings/video', (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+
+    return route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: 'Erreur interne' }),
+    })
+  })
+}
+
+/**
+ * Sondage du statut d'une réunion — GET /api/v1/meetings/{id}/status.
+ *
+ * Même principe que mockTranscriptionStatus : la liste est consommée appel
+ * après appel, puis la dernière valeur est répétée. useMeetingStatus interroge
+ * toutes les 3 s et cesse dès le premier statut final, ce qui rend le nombre
+ * de sondages imprévisible — d'où cette séquence plutôt qu'un compteur exact.
+ *
+ * Attention : mockAudioUpload pose une interception sur le même motif. Si les
+ * deux sont enregistrées, Playwright retient la dernière posée.
+ */
+export async function mockMeetingStatus(page: Page, sequence: string[]) {
+  let call = 0
+
+  await page.route('**/api/v1/meetings/*/status', (route) => {
+    const status = sequence[Math.min(call, sequence.length - 1)]
+    call += 1
+
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: VIDEO_MEETING_ID, status }),
+    })
+  })
+}
+
 /** Réunion telle qu'affichée sur une carte du dashboard. */
 export function meetingListItem(overrides: Record<string, unknown> = {}) {
   return {
@@ -191,6 +270,40 @@ export function meetingDetail(overrides: Record<string, unknown> = {}) {
     summary: null,
     ...overrides,
   }
+}
+
+export const VIDEO_TRANSCRIPTION_TEXT =
+  'Bonjour à tous, merci d\'être présents. Nous ouvrons le comité de pilotage.'
+
+/**
+ * Détail d'une réunion vidéo.
+ *
+ * La diarisation porte ici des noms de participants, là où le dictaphone ne
+ * distingue que « Locuteur 1 » et « Locuteur 2 » : le bot est identifié dans
+ * la conférence et reçoit les noms déclarés par les participants. C'est la
+ * différence visible la plus nette entre les deux modes.
+ */
+export function videoMeetingDetail(overrides: Record<string, unknown> = {}) {
+  return meetingDetail({
+    id:           VIDEO_MEETING_ID,
+    title:        'Comité de pilotage',
+    mode:         'video',
+    meeting_link: MEETING_LINK,
+    duration_sec: 2730,
+    transcription: {
+      id:            TRANSCRIPTION_ID,
+      status:        'completed',
+      raw_text:      VIDEO_TRANSCRIPTION_TEXT,
+      diarization: [
+        { speaker: 'Sophie Marchand', start: 0,   end: 45,  text: 'Bonjour à tous, merci d\'être présents.' },
+        { speaker: 'Marc Lefèvre',    start: 45,  end: 92,  text: 'Le chantier de migration est terminé.' },
+        { speaker: 'Sophie Marchand', start: 92,  end: 130, text: 'Très bien, passons au budget.' },
+      ],
+      language:      'fr',
+      processing_ms: 8400,
+    },
+    ...overrides,
+  })
 }
 
 /**
