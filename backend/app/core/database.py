@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     MISTRAL_API_URL:      str = "https://api.mistral.ai/v1"
     VOXTRAL_MODEL:        str = "voxtral-mini-latest"
     VOXTRAL_TIMEOUT_SEC:  float = 300.0
+    MAX_RETRY_COUNT: int = 3
 
     class Config:
         env_file = ".env"
