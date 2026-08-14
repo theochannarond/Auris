@@ -19,6 +19,7 @@ class Transcription(Base):
     model         = Column(String(50), nullable=True)                      # modèle Voxtral utilisé
     processing_ms = Column(Integer, nullable=True)                         # durée de traitement Voxtral en ms
     error_message = Column(Text, nullable=True)                            # message d'erreur si status = failed
+    retry_count = Column(Integer, nullable=False, default=0)  # nombre de tentatives effectuées
     created_at    = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at    = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at    = Column(DateTime, nullable=True)  # soft delete RGPD Art.17

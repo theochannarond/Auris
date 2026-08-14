@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
-from app.core.database import get_db, SessionLocal
+from app.core.database import get_db, SessionLocal, settings
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.meeting import Meeting
@@ -12,7 +12,7 @@ from app.schemas.transcription import (
     TranscriptionStatusResponse,
 )
 from app.services.storage_service import download_audio_file
-from app.services.voxtral_service import transcribe_audio, VoxtralTranscriptionError
+from app.services.voxtral_service import transcribe_audio_with_backoff, VoxtralTranscriptionError
 from uuid import UUID
 
 
@@ -40,7 +40,7 @@ async def run_transcription(transcription_id: UUID, storage_key: str, mime_type:
 
         try:
             audio_content = await download_audio_file(storage_key)
-            result = await transcribe_audio(
+            result = await transcribe_audio_with_backoff(
                 audio_content = audio_content,
                 filename      = storage_key.split("/")[-1],
                 mime_type     = mime_type
@@ -49,6 +49,7 @@ async def run_transcription(transcription_id: UUID, storage_key: str, mime_type:
             transcription.status        = "failed"
             transcription.error_message = str(e)
             transcription.processing_ms = e.processing_ms
+            transcription.retry_count   = settings.MAX_RETRY_COUNT
             db.commit()
             return
         except Exception as e:
@@ -63,6 +64,7 @@ async def run_transcription(transcription_id: UUID, storage_key: str, mime_type:
         transcription.language      = result["language"]
         transcription.model         = result["model"]
         transcription.processing_ms = result["processing_ms"]
+        transcription.retry_count   = result.get("attempts", 1)
         db.commit()
     finally:
         db.close()
@@ -120,6 +122,58 @@ async def create_transcription(
         status        = "pending"
     )
     db.add(transcription)
+    db.commit()
+    db.refresh(transcription)
+
+    background_tasks.add_task(
+        run_transcription,
+        transcription_id = transcription.id,
+        storage_key      = audio_file.storage_key,
+        mime_type        = audio_file.mime_type
+    )
+
+    return transcription
+
+
+# ─── Relance manuelle après échec définitif ───
+@router.post(
+    "/transcriptions/{transcription_id}/retry",
+    response_model=TranscriptionResponse,
+    status_code=status.HTTP_202_ACCEPTED
+)
+async def retry_transcription(
+    transcription_id: UUID,
+    background_tasks: BackgroundTasks,
+    db:               Session = Depends(get_db),
+    current_user:     dict    = Depends(get_current_user)
+):
+    transcription = db.query(Transcription).filter(
+        Transcription.id         == transcription_id,
+        Transcription.deleted_at == None
+    ).first()
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Transcription non trouvée")
+
+    get_owned_meeting(transcription.meeting_id, db, current_user)
+
+    if transcription.status != "failed":
+        raise HTTPException(
+            status_code=400,
+            detail="Seule une transcription en échec peut être relancée"
+        )
+
+    audio_file = db.query(AudioFile).filter(
+        AudioFile.id == transcription.audio_file_id
+    ).first()
+    if not audio_file:
+        raise HTTPException(
+            status_code=404,
+            detail="Fichier audio introuvable pour cette transcription"
+        )
+
+    transcription.status        = "pending"
+    transcription.error_message = None
+    transcription.retry_count   = 0
     db.commit()
     db.refresh(transcription)
 
