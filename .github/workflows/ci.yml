@@ -95,3 +95,25 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
+
+  deploy:
+    name: Déploiement OVH
+    needs: [backend, frontend, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Déployer sur le serveur OVH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OVH_HOST }}
+          username: ${{ secrets.OVH_USER }}
+          key: ${{ secrets.OVH_SSH_KEY }}
+          script: |
+            cd /opt/auris
+            git pull origin main
+            cd infra
+            docker compose pull
+            docker compose up -d --build
