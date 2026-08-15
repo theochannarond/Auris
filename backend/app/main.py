@@ -6,6 +6,7 @@ from app.api.v1.meetings import router as meetings_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.transcriptions import router as transcriptions_router
 from app.api.v1.summaries import router as summaries_router
+from app.services.storage_service import check_ovh_health
 
 
 
@@ -29,15 +30,31 @@ app.include_router(webhooks_router)
 app.include_router(transcriptions_router)
 app.include_router(summaries_router)
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "service": "auris-backend"}
 
+@app.get("/health")
+async def health_check():
+    db_ok      = check_db_connection()
+    ovh_health = await check_ovh_health()
+    return {
+        "status":   "ok" if db_ok else "error",
+        "service":  "auris-backend",
+        "database": "connected" if db_ok else "unreachable",
+        "storage":  ovh_health["status"],
+    }
 
 @app.get("/health/db")
 def health_check_db():
     db_ok = check_db_connection()
     return {
-        "status": "ok" if db_ok else "error",
+        "status":   "ok" if db_ok else "error",
         "database": "connected" if db_ok else "unreachable"
+    }
+
+@app.get("/health/storage")
+async def health_check_storage():
+    ovh_health = await check_ovh_health()
+    return {
+        "status":  ovh_health["status"],
+        "storage": "ovh",
+        "error":   ovh_health.get("error")
     }
