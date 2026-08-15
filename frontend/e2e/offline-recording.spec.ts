@@ -34,7 +34,7 @@ test.describe('Dictaphone — mode hors ligne', () => {
     // Coupe le réseau
     await page.context().setOffline(true)
 
-    await expect(page.getByText(/Connexion perdue/)).toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.fixed').getByText(/Connexion perdue/)).toBeVisible({ timeout: 3000 })
 
     // Le chronomètre continue de tourner — l'enregistrement n'est pas interrompu
     const timeBefore = await page.getByText(timer).textContent()
@@ -54,7 +54,7 @@ test.describe('Dictaphone — mode hors ligne', () => {
 
     // Coupe puis rétablit la connexion
     await page.context().setOffline(true)
-    await expect(page.getByText(/Connexion perdue/)).toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.fixed').getByText(/Connexion perdue/)).toBeVisible({ timeout: 3000 })
 
     await page.context().setOffline(false)
     await expect(page.locator('.fixed').getByText(/Connexion rétablie/)).toBeVisible({ timeout: 3000 })
