@@ -86,3 +86,26 @@ async def delete_audio_file(object_key: str) -> bool:
         # On log mais on ne bloque pas : le fichier orphelin sera repris par la purge
         print(f"OVH delete error for {object_key}: {e}")
         return False
+    
+async def check_ovh_health() -> dict:
+    """
+    Vérifie que OVH Object Storage est accessible en tentant un head_bucket.
+    Retourne un dict {"status": "ok"|"unavailable", "error": str|None}.
+    Utilisé par le health endpoint et le fallback automatique.
+    """
+    if not settings.OVH_ACCESS_KEY or not settings.OVH_SECRET_KEY:
+        return {"status": "unavailable", "error": "Credentials OVH manquants"}
+
+    session = aiobotocore.session.get_session()
+    try:
+        async with session.create_client(
+            "s3",
+            endpoint_url=settings.OVH_ENDPOINT_URL,
+            aws_access_key_id=settings.OVH_ACCESS_KEY,
+            aws_secret_access_key=settings.OVH_SECRET_KEY,
+            region_name=settings.OVH_REGION,
+        ) as client:
+            await client.head_bucket(Bucket=settings.OVH_BUCKET_NAME)
+            return {"status": "ok", "error": None}
+    except Exception as e:
+        return {"status": "unavailable", "error": str(e)}
