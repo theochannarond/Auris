@@ -21,7 +21,7 @@ test.describe('Dictaphone — mode hors ligne', () => {
     // Simule la coupure réseau
     await page.context().setOffline(true)
 
-    await expect(page.getByText(/Connexion perdue/)).toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.fixed').getByText(/Connexion perdue/)).toBeVisible({ timeout: 3000 })
   })
 
   test('l\'enregistrement continue après une coupure réseau', async ({ page }) => {
@@ -57,7 +57,7 @@ test.describe('Dictaphone — mode hors ligne', () => {
     await expect(page.getByText(/Connexion perdue/)).toBeVisible({ timeout: 3000 })
 
     await page.context().setOffline(false)
-    await expect(page.getByText(/Connexion rétablie/)).toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.fixed').getByText(/Connexion rétablie/)).toBeVisible({ timeout: 3000 })
   })
 
   test('arrêter après reconnexion produit un enregistrement valide', async ({ page }) => {
