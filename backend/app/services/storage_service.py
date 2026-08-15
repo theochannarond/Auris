@@ -1,5 +1,11 @@
 from app.core.database import settings
 import aiobotocore.session
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+LOCAL_FALLBACK_DIR = "/tmp/auris_fallback"
 
 # Valeur par défaut de Settings tant que l'abonnement OVH n'est pas souscrit
 OVH_PLACEHOLDER_ACCESS_KEY = "your-ovh-access-key"
@@ -88,13 +94,8 @@ async def delete_audio_file(object_key: str) -> bool:
         return False
     
 async def check_ovh_health() -> dict:
-    """
-    Vérifie que OVH Object Storage est accessible en tentant un head_bucket.
-    Retourne un dict {"status": "ok"|"unavailable", "error": str|None}.
-    Utilisé par le health endpoint et le fallback automatique.
-    """
-    if not settings.OVH_ACCESS_KEY or not settings.OVH_SECRET_KEY:
-        return {"status": "unavailable", "error": "Credentials OVH manquants"}
+    if not is_storage_configured():
+        return {"status": "unavailable", "error": "Credentials OVH manquants ou placeholder"}
 
     session = aiobotocore.session.get_session()
     try:
@@ -109,3 +110,58 @@ async def check_ovh_health() -> dict:
             return {"status": "ok", "error": None}
     except Exception as e:
         return {"status": "unavailable", "error": str(e)}
+
+
+def _ensure_fallback_dir() -> None:
+    os.makedirs(LOCAL_FALLBACK_DIR, exist_ok=True)
+
+
+async def upload_audio_file_with_fallback(
+    file_content: bytes,
+    object_key:   str,
+    content_type: str
+) -> dict:
+    """
+    Tente d'uploader sur OVH. Si OVH est indisponible, sauvegarde
+    localement dans LOCAL_FALLBACK_DIR et retourne le statut.
+
+    Retourne un dict :
+    {
+        "storage_key": str,
+        "storage":     "ovh" | "local",
+        "fallback":    bool
+    }
+    """
+    health = await check_ovh_health()
+
+    if health["status"] == "ok":
+        try:
+            await upload_audio_file(file_content, object_key, content_type)
+            return {
+                "storage_key": object_key,
+                "storage":     "ovh",
+                "fallback":    False
+            }
+        except Exception as e:
+            logger.warning(
+                f"Upload OVH échoué malgré health check OK : {e} — activation du fallback local"
+            )
+
+    # Fallback local
+    _ensure_fallback_dir()
+    safe_filename = object_key.replace("/", "_")
+    local_path    = os.path.join(LOCAL_FALLBACK_DIR, safe_filename)
+
+    with open(local_path, "wb") as f:
+        f.write(file_content)
+
+    logger.error(
+        f"FALLBACK ACTIVÉ — fichier sauvegardé localement : {local_path} "
+        f"(raison OVH : {health.get('error', 'inconnue')})"
+    )
+
+    return {
+        "storage_key": local_path,
+        "storage":     "local",
+        "fallback":    True
+    }
