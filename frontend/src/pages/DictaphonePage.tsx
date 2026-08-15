@@ -5,6 +5,9 @@ import Dictaphone from "../components/ui/Dictaphone";
 import Spinner from "../components/Spinner";
 import ProgressBar from "../components/ProgressBar";
 import TranscriptionProgress from "../components/ui/TranscriptionProgress";
+import { saveChunkToIndexedDB, clearChunksFromIndexedDB } from "../services/audioStorage";
+import { useOfflineSync } from "../hooks/useOfflineSync";
+import { useNetworkStatus } from "../hooks/useNetworkStatus";
 
 const MAX_RETRIES = 3;
 
@@ -63,14 +66,14 @@ export default function DictaphonePage() {
     await startRecording();
   };
 
-  const handleUpload = async () => {
-    if (!audioBlob || !meetingId) return;
+  const handleUploadBlob = async (blob: Blob) => {
+    if (!meetingId) return;
     setUploading(true);
     setUploadError("");
 
     try {
       const formData = new FormData();
-      formData.append("file", audioBlob, "recording.wav");
+      formData.append("file", blob, "recording.wav");
 
       const uploadRes = await fetch(`/api/v1/meetings/${meetingId}/audio`, {
         method: "POST",
@@ -94,6 +97,9 @@ export default function DictaphonePage() {
       setTranscriptionId(transcription.id);
       setUploaded(true);
       setRetryCount(0);
+
+      // Nettoyage IndexedDB après upload réussi
+      await clearChunksFromIndexedDB(meetingId);
     } catch {
       setUploadError("Échec de l'envoi de l'audio. Vérifiez votre connexion et réessayez.");
     } finally {
@@ -101,7 +107,20 @@ export default function DictaphonePage() {
     }
   };
 
+  const handleUpload = async () => {
+    if (!audioBlob || !meetingId) return;
+    await handleUploadBlob(audioBlob);
+  };
+
   const isBusy = uploading || transcriptionStatus === "processing";
+
+  const { isOnline } = useNetworkStatus();
+
+  useOfflineSync({
+    meetingId,
+    onSynced: (blob) => handleUploadBlob(blob),
+    onSyncFail: (error) => setError(error),
+  });
 
   return (
     <div style={{
@@ -132,6 +151,12 @@ export default function DictaphonePage() {
       {micError && (
         <p style={{ color: "#B91C1C", fontSize: "0.9rem", marginTop: "16px", textAlign: "center" }}>
           {micError}
+        </p>
+      )}
+
+      {!isOnline && isRecording && (
+        <p className="text-[#7A4A00] text-sm mt-4 text-center">
+          ⚠ Connexion perdue — l'enregistrement continue localement.
         </p>
       )}
 
