@@ -8,6 +8,8 @@ import Spinner from "../components/Spinner";
 import ProgressBar from "../components/ProgressBar";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
+import { apiFetch } from "../services/api";
+
 
 function formatDate(isoDate: string): string {
   return new Date(isoDate).toLocaleDateString("fr-FR", {
@@ -45,7 +47,7 @@ export default function MeetingDetailPage() {
     setIsSummarizing(true);
     setSummaryError("");
     try {
-      const response = await fetch("/api/v1/summaries", {
+      const response = await apiFetch("/api/v1/summaries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ meeting_id: meeting.id })

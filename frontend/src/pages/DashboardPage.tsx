@@ -22,9 +22,24 @@ export default function DashboardPage() {
   return (
     <div className="font-sans max-w-[760px] mx-auto px-6 py-12">
       <h1 className="text-3xl mb-2">Auris</h1>
-      <h2 className="text-lg text-gray-500 mb-10 font-normal">
+      <h2 className="text-lg text-gray-500 mb-6 font-normal">
         Historique de vos réunions
       </h2>
+
+      <div className="flex gap-3 mb-10">
+        <Link
+        to="/consent"
+        className="px-4 py-2 rounded-lg bg-[#2C5F8A] text-white text-sm no-underline"
+      >
+        + Nouvelle réunion dictaphone
+      </Link>
+        <Link
+          to="/video"
+          className="px-4 py-2 rounded-lg border border-[#2C5F8A] text-[#2C5F8A] text-sm no-underline"
+        >
+          + Réunion vidéo
+        </Link>
+      </div>
 
       {loading && (
         <div>

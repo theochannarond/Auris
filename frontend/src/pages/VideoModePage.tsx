@@ -4,6 +4,8 @@ import BotStatusNotification from "../components/ui/BotStatusNotification";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Spinner from "../components/Spinner";
+import { apiFetch } from "../services/api";
+
 
 export default function VideoModePage() {
   const [meetingLink, setMeetingLink] = useState("");
@@ -21,7 +23,7 @@ export default function VideoModePage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/v1/meetings/video", {
+      const response = await apiFetch("/api/v1/meetings/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, meeting_link: meetingLink })

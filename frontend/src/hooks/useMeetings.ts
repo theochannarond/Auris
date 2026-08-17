@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "../services/api";
+
 
 export interface MeetingListItem {
   id:           string;
@@ -21,7 +23,7 @@ export function useMeetings() {
 
     const fetchMeetings = async () => {
       try {
-        const res = await fetch("/api/v1/meetings");
+        const res = await apiFetch("/api/v1/meetings");
         if (!res.ok) throw new Error("Erreur récupération des réunions");
         const data: MeetingListItem[] = await res.json();
         if (!cancelled) setMeetings(data);
@@ -37,7 +39,7 @@ export function useMeetings() {
   }, []);
 
   const deleteMeeting = async (meetingId: string): Promise<string> => {
-    const res = await fetch(`/api/v1/meetings/${meetingId}`, {
+    const res = await apiFetch(`/api/v1/meetings/${meetingId}`, {
       method: "DELETE"
     });
     if (!res.ok) throw new Error("Suppression échouée");

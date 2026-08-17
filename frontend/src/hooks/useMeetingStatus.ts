@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { apiFetch } from "../services/api";
+
 
 interface MeetingStatus {
   id: string;
@@ -15,7 +17,7 @@ export function useMeetingStatus(meetingId: string | null, pollingInterval = 300
 
     const fetchStatus = async () => {
       try {
-        const res = await fetch(`/api/v1/meetings/${meetingId}/status`);
+        const res = await apiFetch(`/api/v1/meetings/${meetingId}/status`);
         if (!res.ok) throw new Error("Erreur récupération statut");
         const data: MeetingStatus = await res.json();
         setStatus(data.status);

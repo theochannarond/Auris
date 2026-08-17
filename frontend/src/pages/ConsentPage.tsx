@@ -1,5 +1,7 @@
 import { useState } from "react";
 import Button from "../components/ui/Button";
+import { apiFetch } from "../services/api";
+
 
 interface ConsentPageProps {
   onConsent: () => void;
@@ -15,7 +17,7 @@ export default function ConsentPage({ onConsent }: ConsentPageProps) {
     setLoading(true);
     setError("");
     try {
-      await fetch("/api/v1/consents", {
+      await apiFetch("/api/v1/consents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ given_at: new Date().toISOString() }),
