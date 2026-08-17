@@ -15,6 +15,9 @@ from app.services.storage_service import download_audio_file
 from app.services.voxtral_service import transcribe_audio_with_backoff, VoxtralTranscriptionError
 from uuid import UUID
 
+import os
+from app.services.storage_service import LOCAL_FALLBACK_DIR
+
 
 router = APIRouter(prefix="/api/v1", tags=["transcriptions"])
 
@@ -39,7 +42,12 @@ async def run_transcription(transcription_id: UUID, storage_key: str, mime_type:
         db.commit()
 
         try:
-            audio_content = await download_audio_file(storage_key)
+            if storage_key.startswith("/tmp") or os.path.isfile(storage_key):
+                with open(storage_key, "rb") as f:
+                    audio_content = f.read()
+            else:
+                audio_content = await download_audio_file(storage_key)
+
             result = await transcribe_audio_with_backoff(
                 audio_content = audio_content,
                 filename      = storage_key.split("/")[-1],

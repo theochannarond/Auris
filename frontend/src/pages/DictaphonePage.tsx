@@ -8,6 +8,8 @@ import TranscriptionProgress from "../components/ui/TranscriptionProgress";
 import { saveChunkToIndexedDB, clearChunksFromIndexedDB } from "../services/audioStorage";
 import { useOfflineSync } from "../hooks/useOfflineSync";
 import { useNetworkStatus } from "../hooks/useNetworkStatus";
+import { apiFetch } from "../services/api";
+import { Link } from "react-router-dom";
 
 const MAX_RETRIES = 3;
 
@@ -50,7 +52,7 @@ export default function DictaphonePage() {
     setUploaded(false);
 
     try {
-      const res = await fetch("/api/v1/meetings", {
+      const res = await apiFetch("/api/v1/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: `Réunion du ${new Date().toLocaleDateString("fr-FR")}` })
@@ -75,19 +77,19 @@ export default function DictaphonePage() {
       const formData = new FormData();
       formData.append("file", blob, "recording.wav");
 
-      const uploadRes = await fetch(`/api/v1/meetings/${meetingId}/audio`, {
+      const uploadRes = await apiFetch(`/api/v1/meetings/${meetingId}/audio`, {
         method: "POST",
         body: formData
       });
       if (!uploadRes.ok) throw new Error();
 
-      await fetch(`/api/v1/meetings/${meetingId}/status`, {
+      await apiFetch(`/api/v1/meetings/${meetingId}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "processing" })
       });
 
-      const transcriptionRes = await fetch("/api/v1/transcriptions", {
+      const transcriptionRes = await apiFetch("/api/v1/transcriptions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ meeting_id: meetingId })
@@ -132,8 +134,11 @@ export default function DictaphonePage() {
       fontFamily: "Arial, sans-serif",
       padding: "32px 24px"
     }}>
+      <Link to="/dashboard" style={{ color: "#2C5F8A", fontSize: "0.85rem", textDecoration: "none", marginBottom: "32px", alignSelf: "flex-start" }}>
+        ← Retour au dashboard
+      </Link>
       <h1 style={{ fontSize: "2rem", marginBottom: "8px" }}>Auris</h1>
-      <h2 style={{ fontSize: "1.1rem", color: "#6B7280", marginBottom: "40px" }}>
+      <h2 style={{ fontSize: "0.9rem", color: "#6B7280", marginBottom: "40px" }}>
         Mode dictaphone
       </h2>
 
@@ -244,16 +249,6 @@ export default function DictaphonePage() {
           )}
         </div>
       )}
-
-      {/* Suivi du statut de la transcription */}
-      {transcriptionId && (
-        <TranscriptionProgress
-          status={transcriptionStatus}
-          processingMs={processingMs}
-          errorMessage={errorMessage}
-        />
-      )}
-
       {uploaded && (
         <div style={{
           marginTop: "32px",
@@ -283,6 +278,16 @@ export default function DictaphonePage() {
           </button>
         </div>
       )}
+
+      {/* Suivi du statut de la transcription */}
+      {transcriptionId && (
+        <TranscriptionProgress
+          status={transcriptionStatus}
+          processingMs={processingMs}
+          errorMessage={errorMessage}
+        />
+      )}
+
 
       {error && (
         <p style={{ color: "#B91C1C", marginTop: "16px", fontSize: "0.9rem" }}>

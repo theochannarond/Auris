@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { apiFetch } from "../services/api";
+
 
 interface TranscriptionStatus {
   id: string;
@@ -36,7 +38,7 @@ export function useTranscriptionStatus(transcriptionId: string | null, pollingIn
 
     const fetchStatus = async () => {
       try {
-        const res = await fetch(`/api/v1/transcriptions/${transcriptionId}/status`);
+        const res = await apiFetch(`/api/v1/transcriptions/${transcriptionId}/status`);
         if (!res.ok) throw new Error("Erreur récupération statut");
         const data: TranscriptionStatus = await res.json();
 

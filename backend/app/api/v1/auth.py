@@ -4,6 +4,8 @@ from datetime import datetime
 from uuid import uuid4
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.models.user import User
+
 
 router = APIRouter(prefix="/api/v1", tags=["auth"])
 
@@ -51,3 +53,25 @@ def require_consent(current_user: dict = Depends(get_current_user)):
             detail="Consentement RGPD requis avant tout enregistrement"
         )
     return consent
+
+
+@router.post("/auth/register", status_code=status.HTTP_200_OK)
+async def register_user(
+    db:           Session = Depends(get_db),
+    current_user: dict    = Depends(get_current_user)
+):
+    """
+    Crée l'utilisateur en base s'il n'existe pas encore.
+    Appelé automatiquement après le login Keycloak.
+    """
+    user = db.query(User).filter(User.keycloak_id == current_user["id"]).first()
+    if not user:
+        user = User(
+            keycloak_id = current_user["id"],
+            email       = current_user.get("email", ""),
+            full_name   = current_user.get("name") or current_user.get("preferred_username") or "Utilisateur",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return {"id": str(user.id), "keycloak_id": user.keycloak_id}

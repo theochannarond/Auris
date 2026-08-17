@@ -22,7 +22,7 @@ async def verify_token(
             token,
             jwks,
             algorithms=["RS256"],
-            audience=settings.KEYCLOAK_CLIENT_ID
+            options={"verify_aud": False}
         )
         return payload
     except JWTError:

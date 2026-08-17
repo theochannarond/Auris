@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { apiFetch } from "../services/api";
+
 
 interface SummaryStatus {
   id: string;
@@ -31,7 +33,7 @@ export function useSummaryStatus(summaryId: string | null, pollingInterval = 300
 
     const fetchStatus = async () => {
       try {
-        const res = await fetch(`/api/v1/summaries/${summaryId}`);
+        const res = await apiFetch(`/api/v1/summaries/${summaryId}`);
         if (!res.ok) throw new Error("Erreur récupération résumé");
         const data: SummaryStatus = await res.json();
         setSummary(data);

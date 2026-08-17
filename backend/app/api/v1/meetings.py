@@ -11,7 +11,7 @@ from app.models.transcription import Transcription
 from app.schemas.meeting import MeetingCreate, MeetingResponse, MeetingStatusUpdate, MeetingStatusResponse, MeetingListItem, MeetingDetailResponse, MeetingTranscriptionDetail, MeetingDeleteResponse
 from app.schemas.summary import SummaryResponse
 from app.services import vexa_service
-from app.services.storage_service import upload_audio_file, delete_audio_file
+from app.services.storage_service import upload_audio_file_with_fallback, delete_audio_file
 from app.services.meeting_deletion_service import soft_delete_meeting
 from typing import List
 from uuid import UUID
@@ -195,7 +195,8 @@ async def upload_meeting_audio(
 
     content = await file.read()
     object_key = f"{meeting_id}/{uuid_lib.uuid4()}-{file.filename}"
-    await upload_audio_file(content, object_key, file.content_type)
+    result = await upload_audio_file_with_fallback(content, object_key, file.content_type)
+    object_key = result["storage_key"]
 
     # La clé OVH est tracée dans audio_files — c'est elle que la transcription ira chercher
     audio_file = AudioFile(
@@ -205,6 +206,11 @@ async def upload_meeting_audio(
         mime_type       = file.content_type or "audio/wav"
     )
     db.add(audio_file)
+    # Calcule la durée approximative depuis la taille du fichier WAV
+    # WAV 16bit mono 16kHz = ~32000 bytes/sec
+    estimated_duration = len(content) // 16000
+    if estimated_duration > 0:
+        meeting.duration_sec = estimated_duration
     db.commit()
     db.refresh(meeting)
     return meeting

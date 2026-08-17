@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "../services/api";
+
 
 export interface DiarizationSegment {
   speaker: string;
@@ -58,7 +60,7 @@ export function useMeetingDetail(meetingId: string | undefined) {
 
     const fetchDetail = async () => {
       try {
-        const res = await fetch(`/api/v1/meetings/${meetingId}`);
+        const res = await apiFetch(`/api/v1/meetings/${meetingId}`);
         if (!res.ok) throw new Error("Erreur récupération de la réunion");
         const data: MeetingDetail = await res.json();
         if (!cancelled) setMeeting(data);
