@@ -1,0 +1,9 @@
+# SCRUM-249 — Vérifie le renouvellement des certificats 2x/jour (recommandation
+# Certbot : deux fois par jour à une minute aléatoire, pour répartir la charge
+# sur les serveurs Let's Encrypt). Ne fait rien tant que le certificat a
+# encore plus de 30 jours de validité — donc pas d'impact la plupart du temps.
+#
+# Installation sur le serveur OVH (une seule fois) :
+#   crontab -l | { cat; echo "17 3,15 * * * /opt/auris/infra/scripts/renew-ssl.sh >> /var/log/auris-ssl-renewal.log 2>&1"; } | crontab -
+
+17 3,15 * * * /opt/auris/infra/scripts/renew-ssl.sh >> /var/log/auris-ssl-renewal.log 2>&1
