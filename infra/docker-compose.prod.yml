@@ -84,8 +84,15 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # Certificats générés par Certbot sur l'hôte (SCRUM-246/248) — nginx a
+      # juste besoin de les lire, jamais de les écrire.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # Dossier de validation ACME (SCRUM-247/249) — partagé avec Certbot,
+      # qui y écrit sur l'hôte pendant le renouvellement.
+      - /var/www/certbot:/var/www/certbot:ro
     depends_on:
       - backend
       - frontend
