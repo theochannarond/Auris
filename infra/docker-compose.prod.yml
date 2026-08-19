@@ -1,0 +1,101 @@
+version: '3.9'
+
+services:
+
+  # ─── Base de données PostgreSQL ───
+  db:
+    image: postgres:16-alpine
+    container_name: auris_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auris
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - auris_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Backend FastAPI ───
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: auris_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/auris
+      # Communication interne au réseau Docker — ne doit jamais dépendre de la
+      # valeur (souvent "localhost") mise dans .env pour un usage hors conteneur
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      OVH_ACCESS_KEY: ${OVH_ACCESS_KEY}
+      OVH_SECRET_KEY: ${OVH_SECRET_KEY}
+      OVH_BUCKET_NAME: ${OVH_BUCKET_NAME}
+      VEXA_API_KEY: ${VEXA_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - auris_network
+
+  # ─── Frontend React ───
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: auris_frontend
+    restart: unless-stopped
+    environment:
+      # Dans le réseau Docker, le backend est joignable par son nom de service
+      VITE_API_PROXY_TARGET: http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - auris_network
+
+  # ─── Keycloak Auth ───
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: auris_keycloak
+    restart: unless-stopped
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - auris_network
+
+  # ─── nginx — reverse proxy, seul point d'entrée exposé ───
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: auris_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+      - keycloak
+    networks:
+      - auris_network
+
+volumes:
+  postgres_data:
+
+networks:
+  auris_network:
+    driver: bridge
