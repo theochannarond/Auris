@@ -5,17 +5,8 @@ import {
   mockCreateVideoMeeting,
   mockCreateVideoMeetingFailure,
   mockMeetingStatus,
+  mockRegister,
 } from './fixtures/mockApi'
-
-/**
- * Lancement d'une réunion vidéo.
- *
- * Auris ne crée aucune salle : l'utilisateur colle le lien d'une réunion
- * existante (Meet, Teams, Zoom) et le backend y dépêche un bot Vexa. Ce qui
- * est vérifié ici s'arrête donc au navigateur — que le lien saisi parte bien
- * au serveur, et que l'écran de suivi prenne le relais. Ni le backend ni Vexa
- * ne tournent pendant ces tests.
- */
 
 const TITLE = 'Comité de pilotage'
 
@@ -33,9 +24,6 @@ test.describe('Réunion vidéo — lancement', () => {
     await mockCreateVideoMeeting(page)
     await page.goto('/video')
 
-    // Un bot dépêché sans lien exploitable resterait à tourner dans le vide :
-    // on vérifie que la requête ne part pas du tout, pas seulement que
-    // l'utilisateur est averti
     const creations: string[] = []
     page.on('request', (request) => {
       if (request.method() === 'POST' && request.url().includes('/meetings/video')) {
@@ -110,4 +98,8 @@ test.describe('Réunion vidéo — lancement', () => {
     // La saisie n'est pas perdue : réessayer ne demande pas de recoller le lien
     await expect(page.getByPlaceholder('Lien Google Meet / Teams / Zoom')).toHaveValue(MEETING_LINK)
   })
+})
+
+test.beforeEach(async ({ page }) => {
+  await mockRegister(page)
 })

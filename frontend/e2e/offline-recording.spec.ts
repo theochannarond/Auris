@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockCreateMeeting } from './fixtures/mockApi'
+import { mockCreateMeeting, mockRegister } from './fixtures/mockApi'
 
 /**
  * Ces tests simulent une coupure réseau pendant l'enregistrement.
@@ -81,4 +81,8 @@ test.describe('Dictaphone — mode hors ligne', () => {
     await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/)
     await expect(page.getByRole('button', { name: 'Envoyer pour transcription' })).toBeEnabled()
   })
+})
+
+test.beforeEach(async ({ page }) => {
+  await mockRegister(page)
 })

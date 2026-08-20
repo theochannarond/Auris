@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { mockKeycloakAuth, mockConsent } from './fixtures/mockApi'
+import { mockKeycloakAuth, mockConsent, mockRegister } from './fixtures/mockApi'
 
 test.describe('Connexion', () => {
   test('la page d\'accueil propose la connexion Keycloak', async ({ page }) => {
@@ -64,4 +64,8 @@ test.describe('Consentement RGPD', () => {
     expect(request.postDataJSON()).toHaveProperty('given_at')
     await expect(page).toHaveURL(/\/dictaphone$/)
   })
+})
+
+test.beforeEach(async ({ page }) => {
+  await mockRegister(page)
 })

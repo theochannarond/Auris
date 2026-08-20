@@ -338,3 +338,15 @@ export async function mockConsent(page: Page) {
     })
   )
 }
+
+
+/** Mock de l'endpoint register pour bypasser la création utilisateur en base */
+export async function mockRegister(page: Page) {
+  await page.route('**/api/v1/auth/register', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: '33333333-3333-3333-3333-333333333333' }),
+    })
+  )
+}

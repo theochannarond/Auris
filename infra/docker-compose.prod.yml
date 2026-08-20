@@ -1,15 +1,13 @@
-version: '3.9'
-
 services:
 
   # ─── Base de données PostgreSQL ───
   db:
     image: postgres:16-alpine
     container_name: auris_db
-    restart: unless-stopped
+    restart: always
     environment:
-      POSTGRES_DB: auris
-      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB:       auris
+      POSTGRES_USER:     ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -23,24 +21,26 @@ services:
 
   # ─── Backend FastAPI ───
   backend:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
+    image: ghcr.io/theochannarond/auris-backend:latest
     container_name: auris_backend
-    restart: unless-stopped
+    restart: always
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/auris
-      # Communication interne au réseau Docker — ne doit jamais dépendre de la
-      # valeur (souvent "localhost") mise dans .env pour un usage hors conteneur
-      KEYCLOAK_URL: http://keycloak:8080
-      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
-      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      DATABASE_URL:          postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/auris
+      KEYCLOAK_URL:          http://keycloak:8080
+      KEYCLOAK_REALM:        ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID:    ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
-      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
-      OVH_ACCESS_KEY: ${OVH_ACCESS_KEY}
-      OVH_SECRET_KEY: ${OVH_SECRET_KEY}
-      OVH_BUCKET_NAME: ${OVH_BUCKET_NAME}
-      VEXA_API_KEY: ${VEXA_API_KEY}
+      MISTRAL_API_KEY:       ${MISTRAL_API_KEY}
+      VOXTRAL_MODEL:         ${VOXTRAL_MODEL}
+      VOXTRAL_TIMEOUT_SEC:   ${VOXTRAL_TIMEOUT_SEC}
+      MAX_RETRY_COUNT:       ${MAX_RETRY_COUNT}
+      OVH_ACCESS_KEY:        ${OVH_ACCESS_KEY}
+      OVH_SECRET_KEY:        ${OVH_SECRET_KEY}
+      OVH_BUCKET_NAME:       ${OVH_BUCKET_NAME}
+      OVH_ENDPOINT_URL:      ${OVH_ENDPOINT_URL}
+      OVH_REGION:            ${OVH_REGION}
+      VEXA_API_KEY:          ${VEXA_API_KEY}
+      VEXA_WEBHOOK_SECRET:   ${VEXA_WEBHOOK_SECRET}
     depends_on:
       db:
         condition: service_healthy
@@ -49,14 +49,14 @@ services:
 
   # ─── Frontend React ───
   frontend:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
+    image: ghcr.io/theochannarond/auris-frontend:latest
     container_name: auris_frontend
-    restart: unless-stopped
+    restart: always
     environment:
-      # Dans le réseau Docker, le backend est joignable par son nom de service
-      VITE_API_PROXY_TARGET: http://backend:8000
+      VITE_API_PROXY_TARGET:    http://backend:8000
+      VITE_KEYCLOAK_URL:        ${VITE_KEYCLOAK_URL}
+      VITE_KEYCLOAK_REALM:      ${VITE_KEYCLOAK_REALM}
+      VITE_KEYCLOAK_CLIENT_ID:  ${VITE_KEYCLOAK_CLIENT_ID}
     depends_on:
       - backend
     networks:
@@ -66,42 +66,46 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:24.0
     container_name: auris_keycloak
-    restart: unless-stopped
-    command: start-dev
+    restart: always
+    command: start --optimized
     environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN:          ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB:                   postgres
+      KC_DB_URL:               jdbc:postgresql://db:5432/auris
+      KC_DB_USERNAME:          ${POSTGRES_USER}
+      KC_DB_PASSWORD:          ${POSTGRES_PASSWORD}
+      KC_HOSTNAME:             ${KC_HOSTNAME}
+      KC_PROXY:                edge
+      KC_HTTP_ENABLED:         "true"
     depends_on:
       db:
         condition: service_healthy
     networks:
       - auris_network
 
-  # ─── nginx — reverse proxy, seul point d'entrée exposé ───
+  # ─── nginx reverse proxy ───
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:alpine
     container_name: auris_nginx
-    restart: unless-stopped
+    restart: always
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      # Certificats générés par Certbot sur l'hôte (SCRUM-246/248) — nginx a
-      # juste besoin de les lire, jamais de les écrire.
       - /etc/letsencrypt:/etc/letsencrypt:ro
-      # Dossier de validation ACME (SCRUM-247/249) — partagé avec Certbot,
-      # qui y écrit sur l'hôte pendant le renouvellement.
       - /var/www/certbot:/var/www/certbot:ro
     depends_on:
-      - backend
       - frontend
+      - backend
       - keycloak
     networks:
       - auris_network
 
 volumes:
   postgres_data:
+  certbot_webroot:
 
 networks:
   auris_network:

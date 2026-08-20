@@ -6,7 +6,9 @@ import {
   meetingListItem,
   meetingDetail,
   summary,
+  mockRegister,
 } from './fixtures/mockApi'
+
 
 const OTHER_MEETING_ID = '66666666-6666-6666-6666-666666666666'
 
@@ -43,6 +45,10 @@ test.describe('Dashboard — historique', () => {
     await expect(page.getByText('Aucune réunion pour le moment')).toBeVisible()
     await expect(page.getByText('Vos réunions apparaîtront ici une fois enregistrées.')).toBeVisible()
   })
+})
+
+test.beforeEach(async ({ page }) => {
+  await mockRegister(page)
 })
 
 test.describe('Dashboard — accès au compte rendu', () => {
@@ -83,4 +89,8 @@ test.describe('Dashboard — accès au compte rendu', () => {
     await expect(page).toHaveURL(/\/dashboard$/)
     await expect(page.getByText('Point trimestriel')).toBeVisible()
   })
+})
+
+test.beforeEach(async ({ page }) => {
+  await mockRegister(page)
 })
