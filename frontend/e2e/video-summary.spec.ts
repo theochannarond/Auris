@@ -6,15 +6,9 @@ import {
   mockMeetingDetail,
   videoMeetingDetail,
   summary,
+  mockRegister,
 } from './fixtures/mockApi'
 
-/**
- * Compte rendu d'une réunion vidéo, de l'historique à la page de détail.
- *
- * Réserve à connaître : rien ne distingue une réunion vidéo d'un dictaphone
- * sur les cartes du dashboard. MeetingCard reçoit bien `mode` dans ses données
- * mais ne l'affiche jamais — le mode n'apparaît que sur la page de détail.
- */
 
 const VIDEO_CARD = meetingListItem({
   id:           VIDEO_MEETING_ID,
@@ -51,8 +45,6 @@ test.describe('Réunion vidéo — compte rendu', () => {
     await mockMeetingsList(page, [VIDEO_CARD, meetingListItem()])
     await page.goto('/dashboard')
 
-    // Les deux cartes sont rendues à l'identique : seul le titre permet de
-    // savoir laquelle a été captée par le bot. Signalé en revue.
     await expect(page.getByText('Comité de pilotage')).toBeVisible()
     await expect(page.getByText('Point trimestriel')).toBeVisible()
   })
@@ -101,4 +93,8 @@ test.describe('Réunion vidéo — compte rendu', () => {
     // Le bot a livré sa transcription : il y a de quoi résumer
     await expect(page.getByRole('button', { name: 'Générer le compte-rendu' })).toBeEnabled()
   })
+})
+
+test.beforeEach(async ({ page }) => {
+  await mockRegister(page)
 })

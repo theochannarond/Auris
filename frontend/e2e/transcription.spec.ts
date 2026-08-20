@@ -8,6 +8,7 @@ import {
   mockTranscriptionStatus,
   mockMeetingDetail,
   meetingDetail,
+  mockRegister,
 } from './fixtures/mockApi'
 
 const timer = /^\d{2}:\d{2}$/
@@ -53,6 +54,10 @@ test.describe('Transcription — suivi du traitement', () => {
   })
 })
 
+test.beforeEach(async ({ page }) => {
+  await mockRegister(page)
+})
+
 test.describe('Transcription — affichage sur la réunion', () => {
   test('le texte transcrit est affiché après traitement', async ({ page }) => {
     await mockMeetingDetail(page)
@@ -93,4 +98,8 @@ test.describe('Transcription — affichage sur la réunion', () => {
     await expect(page.getByText('La transcription est en cours de traitement.')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Prise de parole' })).toHaveCount(0)
   })
+})
+
+test.beforeEach(async ({ page }) => {
+  await mockRegister(page)
 })

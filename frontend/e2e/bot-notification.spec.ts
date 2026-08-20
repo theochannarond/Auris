@@ -5,6 +5,7 @@ import {
   mockCreateVideoMeeting,
   mockMeetingStatus,
 } from './fixtures/mockApi'
+import { mockRegister } from './fixtures/mockApi'
 
 /**
  * Notification d'arrivée du bot dans la réunion.
@@ -107,4 +108,8 @@ test.describe('Réunion vidéo — arrivée du bot', () => {
     await expect(page.getByText(JOINED_NOTICE)).toHaveCount(0)
     await expect(page.getByText(FAILED_NOTICE)).toHaveCount(0)
   })
+})
+
+test.beforeEach(async ({ page }) => {
+  await mockRegister(page)
 })
