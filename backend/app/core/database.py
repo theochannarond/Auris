@@ -1,6 +1,12 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from pydantic_settings import BaseSettings
+import logging
+import time
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+
+
 
 class Settings(BaseSettings):
     DATABASE_URL:         str = "postgresql://user:password@localhost:5432/auris"
@@ -47,3 +53,26 @@ def check_db_connection():
         return True
     except Exception:
         return False
+
+# Logger dédié aux requêtes SQL lentes
+slow_query_logger = logging.getLogger("auris.slow_queries")
+
+# Se déclenche juste AVANT chaque requête SQL exécutée
+@event.listens_for(Engine, "before_cursor_execute")
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    # On note l'heure de départ, pour pouvoir calculer la durée après
+    conn.info.setdefault("query_start_time", []).append(time.perf_counter())
+
+# Se déclenche juste APRÈS chaque requête SQL exécutée
+@event.listens_for(Engine, "after_cursor_execute")
+def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    # Calcule combien de temps la requête a pris, en millisecondes
+    total_ms = round(
+        (time.perf_counter() - conn.info["query_start_time"].pop(-1)) * 1000, 2
+    )
+    # Si la requête a pris plus de 100ms, on la considère "lente" et on log un avertissement
+    if total_ms > 100:
+        slow_query_logger.warning(
+            f"Slow query detected ({total_ms}ms)",
+            extra={"duration_ms": total_ms, "query": statement[:200]}
+        )
