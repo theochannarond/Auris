@@ -41,6 +41,7 @@ services:
       OVH_REGION:            ${OVH_REGION}
       VEXA_API_KEY:          ${VEXA_API_KEY}
       VEXA_WEBHOOK_SECRET:   ${VEXA_WEBHOOK_SECRET}
+      OVH_BACKUP_BUCKET:     ${OVH_BACKUP_BUCKET}
     depends_on:
       db:
         condition: service_healthy
