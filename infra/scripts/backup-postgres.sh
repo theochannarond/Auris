@@ -52,4 +52,8 @@ log "INFO — Upload réussi : s3://${S3_BUCKET}/${S3_PREFIX}/${BACKUP_FILE}"
 rm -f "${BACKUP_DIR}/${BACKUP_FILE}"
 log "INFO — Fichier local supprimé"
 
+# ─── Rétention 30 jours ───
+log "INFO — Application politique de rétention 30 jours..."
+bash "$(dirname "$0")/cleanup-old-backups.sh"
+
 log "INFO — Sauvegarde terminée avec succès"
