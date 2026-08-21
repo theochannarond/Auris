@@ -1,0 +1,12 @@
+# Cron job — sauvegarde PostgreSQL quotidienne Auris
+# À installer sur le VPS OVH avec : crontab -e
+# Ou copier dans /etc/cron.d/auris-backup
+
+# ─── Variables d'environnement ───
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO=""
+
+# ─── Sauvegarde PostgreSQL tous les jours à 2h00 ───
+# min  heure  jour  mois  jour_semaine  commande
+0      2      *     *     *             root bash /opt/auris/scripts/backup-postgres.sh >> /var/log/auris/backup.log 2>&1
