@@ -34,6 +34,20 @@ export default defineConfig({
         },
       },
       dependencies: ['setup'],
+      testIgnore: ['**/login-consent.spec.ts'],
+    },
+    {
+      name: 'chromium-public',
+      testMatch: '**/login-consent.spec.ts',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          args: [
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream',
+          ],
+        },
+      },
     },
   ],
   webServer: {
