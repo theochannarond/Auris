@@ -34,11 +34,11 @@ export default defineConfig({
         },
       },
       dependencies: ['setup'],
-      testIgnore: ['**/login-consent.spec.ts'],
+      testIgnore: ['**/login.spec.ts'],
     },
     {
       name: 'chromium-public',
-      testMatch: '**/login-consent.spec.ts',
+      testMatch: '**/login.spec.ts',
       use: {
         ...devices['Desktop Chrome'],
         launchOptions: {
