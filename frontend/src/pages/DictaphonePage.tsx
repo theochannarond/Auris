@@ -5,7 +5,7 @@ import Dictaphone from "../components/ui/Dictaphone";
 import Spinner from "../components/Spinner";
 import ProgressBar from "../components/ProgressBar";
 import TranscriptionProgress from "../components/ui/TranscriptionProgress";
-import { saveChunkToIndexedDB, clearChunksFromIndexedDB } from "../services/audioStorage";
+import { clearChunksFromIndexedDB } from "../services/audioStorage";
 import { useOfflineSync } from "../hooks/useOfflineSync";
 import { useNetworkStatus } from "../hooks/useNetworkStatus";
 import { apiFetch } from "../services/api";
