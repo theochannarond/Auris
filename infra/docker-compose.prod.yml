@@ -53,11 +53,10 @@ services:
     image: ghcr.io/theochannarond/auris-frontend:latest
     container_name: auris_frontend
     restart: always
-    environment:
-      VITE_API_PROXY_TARGET:    http://backend:8000
-      VITE_KEYCLOAK_URL:        ${VITE_KEYCLOAK_URL}
-      VITE_KEYCLOAK_REALM:      ${VITE_KEYCLOAK_REALM}
-      VITE_KEYCLOAK_CLIENT_ID:  ${VITE_KEYCLOAK_CLIENT_ID}
+    # Aucune variable ici : l'image ne contient plus que des fichiers statiques
+    # servis par nginx. Les VITE_* sont figées dans le bundle au moment de la
+    # construction de l'image (arguments de build, voir ci.yml) — les définir
+    # au démarrage n'aurait aucun effet.
     depends_on:
       - backend
     networks:
@@ -79,6 +78,9 @@ services:
       KC_HOSTNAME:             ${KC_HOSTNAME}
       KC_PROXY:                edge
       KC_HTTP_ENABLED:         "true"
+      # Keycloak est exposé derrière nginx sous /auth. Sans ce préfixe, il
+      # génère ses URL de redirection à la racine et la connexion boucle.
+      KC_HTTP_RELATIVE_PATH:   /auth
     depends_on:
       db:
         condition: service_healthy
