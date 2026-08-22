@@ -24,6 +24,10 @@ services:
     image: ghcr.io/theochannarond/auris-backend:latest
     container_name: auris_backend
     restart: always
+    # Le Dockerfile lance uvicorn avec --reload, indispensable en développement
+    # où le code est monté depuis l'hôte. En production le code est figé dans
+    # l'image : surveiller les fichiers ne sert à rien et coûte un processus.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       DATABASE_URL:          postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/auris
       KEYCLOAK_URL:          http://keycloak:8080
@@ -67,7 +71,11 @@ services:
     image: quay.io/keycloak/keycloak:24.0
     container_name: auris_keycloak
     restart: always
-    command: start --optimized
+    # Pas de --optimized : ce drapeau saute l'étape d'augmentation, or c'est
+    # elle qui embarque le pilote PostgreSQL. L'image officielle est augmentée
+    # pour H2, donc avec --optimized Keycloak ignorait KC_DB et tentait
+    # d'ouvrir l'URL jdbc:postgresql avec le pilote H2.
+    command: start
     environment:
       KEYCLOAK_ADMIN:          ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
