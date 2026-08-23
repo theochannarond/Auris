@@ -4,7 +4,12 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+# .env seul ne couvrait ni .env.prod ni .env.monitoring : un fichier de
+# secrets créé en local restait committable par mégarde (SCRUM-176).
 .env
+.env.*
+!.env.example
+!.env.*.example
 
 # Node
 node_modules/

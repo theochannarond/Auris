@@ -12,11 +12,34 @@
 # qu'on veut traiter. Le script doit continuer et contrôler les suivants.
 set -uo pipefail
 
+# ─── Configuration ───
+# Destinataire et relais SMTP des alertes. Ce fichier contient un mot de passe
+# et n'est donc pas versionné : voir .env.monitoring.example à la racine du
+# dépôt. "set -a" exporte les variables lues, ce dont msmtp a besoin plus bas
+# pour récupérer le mot de passe par l'environnement plutôt qu'en argument.
+MONITORING_ENV_FILE="${MONITORING_ENV_FILE:-/opt/auris/.env.monitoring}"
+
+if [ -f "$MONITORING_ENV_FILE" ]; then
+    set -a
+    # shellcheck source=/dev/null
+    . "$MONITORING_ENV_FILE"
+    set +a
+fi
+
 # ─── Variables ───
 SERVICES=(auris_db auris_backend auris_frontend auris_keycloak auris_nginx)
 
 LOG_FILE="${MONITORING_LOG_FILE:-/var/log/auris/monitoring.log}"
 STATE_DIR="${MONITORING_STATE_DIR:-/var/lib/auris/monitoring}"
+
+# Valeurs par défaut appliquées après la lecture du fichier de configuration,
+# pour que celui-ci puisse les remplacer.
+ALERT_EMAIL_TO="${ALERT_EMAIL_TO:-}"
+ALERT_EMAIL_FROM="${ALERT_EMAIL_FROM:-auris-monitoring@$(hostname -f 2>/dev/null || hostname)}"
+SMTP_HOST="${SMTP_HOST:-}"
+SMTP_PORT="${SMTP_PORT:-587}"
+SMTP_USER="${SMTP_USER:-}"
+SMTP_PASSWORD="${SMTP_PASSWORD:-}"
 
 # Une panne qui dure ne doit pas produire une alerte toutes les 5 minutes.
 # La première part immédiatement, les suivantes seulement après ce délai.
@@ -89,15 +112,61 @@ should_alert() {
     [ "$marker_age_min" -ge "$ALERT_COOLDOWN_MIN" ]
 }
 
-# Point d'entrée unique de l'émission des alertes. Le canal réel (email) est
-# branché ici par le ticket suivant de SCRUM-176 ; pour l'instant tout part
-# dans le journal, ce qui suffit à valider la détection.
+# Les sujets contiennent des accents. Les transmettre bruts produirait un
+# en-tête Subject non conforme, que certains serveurs réécrivent en charabia :
+# on les encode selon la RFC 2047.
+encode_subject() {
+    printf '=?UTF-8?B?%s?=' "$(printf '%s' "$1" | base64 -w 0)"
+}
+
+# Point d'entrée unique de l'émission des alertes : tout part dans le journal,
+# puis par email si la configuration est en place.
+#
+# Le VPS n'héberge pas de serveur mail et OVH bloque souvent le port 25 en
+# sortie : on passe par un relais authentifié en 587, via msmtp. Le mot de
+# passe transite par l'environnement (--passwordeval) et non par la ligne de
+# commande, qui serait lisible de tous dans la sortie de "ps".
 send_alert() {
     local subject="$1"
     local body="$2"
 
     log "ALERTE — $subject"
     printf '%s\n' "$body" >> "$LOG_FILE"
+
+    # Absence de configuration : on le signale une fois par alerte plutôt que
+    # d'échouer, pour que la surveillance reste utilisable via le seul journal.
+    if [ -z "$ALERT_EMAIL_TO" ] || [ -z "$SMTP_HOST" ] || [ -z "$SMTP_USER" ]; then
+        log "AVERTISSEMENT — alerte non envoyée par email : ${MONITORING_ENV_FILE} absent ou incomplet"
+        return
+    fi
+
+    if ! command -v msmtp > /dev/null 2>&1; then
+        log "AVERTISSEMENT — alerte non envoyée par email : msmtp n'est pas installé (voir setup-mail-alerts.sh)"
+        return
+    fi
+
+    if printf 'From: %s\nTo: %s\nSubject: %s\nDate: %s\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\n%s\n' \
+            "$ALERT_EMAIL_FROM" \
+            "$ALERT_EMAIL_TO" \
+            "$(encode_subject "$subject")" \
+            "$(date -R)" \
+            "$body" \
+        | msmtp \
+            --host="$SMTP_HOST" \
+            --port="$SMTP_PORT" \
+            --auth=on \
+            --user="$SMTP_USER" \
+            --passwordeval='printenv SMTP_PASSWORD' \
+            --tls=on \
+            --tls-starttls=on \
+            --from="$ALERT_EMAIL_FROM" \
+            --read-recipients \
+            >> "$LOG_FILE" 2>&1
+    then
+        log "INFO — Alerte envoyée à ${ALERT_EMAIL_TO}"
+    else
+        log "ERREUR — Échec de l'envoi de l'alerte email, détail msmtp ci-dessus"
+    fi
 }
 
 notify_failure() {
@@ -130,6 +199,18 @@ notify_recovery() {
 
 # ─── Préparation ───
 mkdir -p "$(dirname "$LOG_FILE")" "$STATE_DIR"
+
+# ─── Mode test ───
+# "monitor-services.sh --test-alert" émet une alerte factice par le canal
+# réel. C'est la façon de valider la configuration SMTP sans avoir à mettre
+# un service en panne, et ça exerce exactement le code utilisé en production.
+if [ "${1:-}" = "--test-alert" ]; then
+    send_alert \
+        "Auris — test de la chaîne d'alerte" \
+        "$(printf 'Message de test émis manuellement, aucun service n%sest en panne.\n\nHorodatage: %s\nServeur   : %s\n' \
+            "'" "$(date --iso-8601=seconds)" "$(hostname)")"
+    exit 0
+fi
 
 # ─── Contrôle des services ───
 failed=0
