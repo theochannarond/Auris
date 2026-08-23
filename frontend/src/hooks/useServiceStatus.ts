@@ -34,18 +34,30 @@ export function useServiceStatus() {
     const fetchStatus = async () => {
       try {
         const res = await apiFetch("/api/v1/status/services");
-        if (!res.ok) throw new Error("Erreur récupération de l'état des services");
+
+        // Un 401 ne dit rien de la santé des services : c'est la session du
+        // navigateur qui a expiré. L'annoncer comme une panne d'API enverrait
+        // chercher un problème serveur qui n'existe pas.
+        if (res.status === 401) {
+          throw new Error("session");
+        }
+        if (!res.ok) throw new Error("api");
+
         const data: StatusReport = await res.json();
         if (!cancelled) {
           setReport(data);
           setError("");
         }
-      } catch {
+      } catch (err) {
         // On conserve volontairement le dernier rapport à l'écran : un état
         // daté, signalé comme tel, reste plus utile qu'une page vide — et
         // l'API injoignable est elle-même une information.
         if (!cancelled) {
-          setError("Impossible de joindre l'API. L'état ci-dessous n'est plus à jour.");
+          setError(
+            err instanceof Error && err.message === "session"
+              ? "Session expirée. Reconnectez-vous pour rafraîchir l'état des services."
+              : "Impossible de joindre l'API. L'état ci-dessous n'est plus à jour."
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
