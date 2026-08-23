@@ -18,6 +18,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      # Laisse à PostgreSQL le temps d'initialiser son volume au tout premier
+      # démarrage : sans ça les échecs de cette phase comptent dans "retries".
+      start_period: 30s
 
   # ─── Backend FastAPI ───
   backend:
@@ -51,6 +54,19 @@ services:
         condition: service_healthy
     networks:
       - auris_network
+    # /health/db plutôt que /health : cette route ne fait qu'un SELECT 1 local
+    # et répond en quelques millisecondes. /health interroge en plus le stockage
+    # OVH — une lenteur côté OVH marquerait le backend "unhealthy" alors qu'il
+    # va très bien. Le détail par dépendance est exposé sur le dashboard admin.
+    # Pas de curl dans l'image python:3.12-slim, d'où urllib. Et 127.0.0.1
+    # plutôt que localhost, comme pour les autres sondes : uvicorn n'écoute
+    # qu'en IPv4, un résolveur qui tenterait ::1 échouerait sans raison.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/db', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   # ─── Frontend React ───
   frontend:
@@ -62,9 +78,20 @@ services:
     # construction de l'image (arguments de build, voir ci.yml) — les définir
     # au démarrage n'aurait aucun effet.
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - auris_network
+    # wget est fourni par busybox dans l'image alpine — pas besoin de curl.
+    # 127.0.0.1 et non localhost : le /etc/hosts d'Alpine associe localhost à
+    # la fois à 127.0.0.1 et à ::1, or "listen 80" n'écoute qu'en IPv4. Le wget
+    # de busybox essaie ::1 en premier et échoue sur un serveur pourtant sain.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ─── Keycloak Auth ───
   keycloak:
@@ -89,11 +116,34 @@ services:
       # Keycloak est exposé derrière nginx sous /auth. Sans ce préfixe, il
       # génère ses URL de redirection à la racine et la connexion boucle.
       KC_HTTP_RELATIVE_PATH:   /auth
+      # Expose /auth/health/ready, sans quoi Keycloak renvoie 404 dessus.
+      # En 24.x ces routes sont servies sur le port applicatif ; le port
+      # d'administration 9000 dédié n'arrive qu'en 25.
+      KC_HEALTH_ENABLED:       "true"
     depends_on:
       db:
         condition: service_healthy
     networks:
       - auris_network
+    # L'image Keycloak est bâtie sur ubi9-micro : ni curl ni wget. On ouvre
+    # donc la socket à la main via /dev/tcp, une fonctionnalité de bash.
+    # On teste la ligne de statut HTTP et non le contenu JSON : Keycloak
+    # répond 503 tant qu'il n'est pas prêt, ce qui est sans ambiguïté, alors
+    # que chercher "UP" dans le corps peut matcher un sous-contrôle imbriqué
+    # dans un rapport globalement DOWN.
+    # start_period généreux : Keycloak met une quinzaine de secondes à démarrer
+    # et applique ses migrations de schéma au premier lancement.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080 &&
+          printf 'GET /auth/health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '^HTTP/1.1 200' <&3
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
 
   # ─── nginx reverse proxy ───
   nginx:
@@ -108,11 +158,26 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
     depends_on:
-      - frontend
-      - backend
-      - keycloak
+      # nginx ne résout les noms de ses proxy_pass qu'au chargement de sa
+      # configuration : le démarrer une fois ses upstreams réellement prêts
+      # évite qu'il mémorise une IP périmée et réponde 502.
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      # Volontairement "service_started" et non "service_healthy" pour
+      # Keycloak : si un jour sa sonde se casse, on veut perdre /auth, pas
+      # le site entier — nginx doit pouvoir démarrer sans lui.
+      keycloak:
+        condition: service_started
     networks:
       - auris_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   postgres_data:
