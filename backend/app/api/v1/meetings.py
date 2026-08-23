@@ -16,6 +16,7 @@ from app.services.meeting_deletion_service import soft_delete_meeting
 from typing import List
 from uuid import UUID
 import uuid as uuid_lib
+import time
 
 
 router = APIRouter(prefix="/api/v1", tags=["meetings"])
@@ -195,15 +196,19 @@ async def upload_meeting_audio(
 
     content = await file.read()
     object_key = f"{meeting_id}/{uuid_lib.uuid4()}-{file.filename}"
+
+    upload_start = time.perf_counter()
     result = await upload_audio_file_with_fallback(content, object_key, file.content_type)
+    upload_ms = round((time.perf_counter() - upload_start) * 1000, 2)
     object_key = result["storage_key"]
 
     # La clé OVH est tracée dans audio_files — c'est elle que la transcription ira chercher
     audio_file = AudioFile(
-        meeting_id      = meeting.id,
-        storage_key     = object_key,
-        file_size_bytes = len(content),
-        mime_type       = file.content_type or "audio/wav"
+        meeting_id=meeting.id,
+        storage_key=object_key,
+        file_size_bytes=len(content),
+        mime_type=file.content_type or "audio/wav",
+        upload_ms=int(upload_ms)
     )
     db.add(audio_file)
     # Calcule la durée approximative depuis la taille du fichier WAV

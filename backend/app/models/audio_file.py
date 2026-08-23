@@ -12,6 +12,7 @@ class AudioFile(Base):
     meeting_id      = Column(UUID(as_uuid=True), ForeignKey("meetings.id", ondelete="CASCADE"), nullable=False)
     storage_key     = Column(String(512), nullable=False)   # chemin OVH : "meetings/uuid/audio.wav"
     file_size_bytes = Column(BigInteger, nullable=True)
+    upload_ms = Column(Integer, nullable=True)  # durée upload OVH en millisecondes
     duration_sec    = Column(Integer, nullable=True)
     mime_type       = Column(String(50), nullable=False, default="audio/wav")
     created_at      = Column(DateTime, nullable=False, default=datetime.utcnow)
