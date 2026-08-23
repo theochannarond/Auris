@@ -33,7 +33,14 @@ services:
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       DATABASE_URL:          postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/auris
-      KEYCLOAK_URL:          http://keycloak:8080
+      # Le suffixe /auth est indispensable : Keycloak tourne ici sous ce
+      # préfixe (KC_HTTP_RELATIVE_PATH), donc les clés publiques servant à
+      # valider les jetons sont à /auth/realms/... et non à /realms/...
+      # Sans lui le backend récupérait un 404 et toutes les routes
+      # authentifiées échouaient — sans que ça se voie, App.tsx avalant
+      # l'erreur. En développement Keycloak sert à la racine : ne pas
+      # reporter ce suffixe dans docker-compose.yml.
+      KEYCLOAK_URL:          http://keycloak:8080/auth
       KEYCLOAK_REALM:        ${KEYCLOAK_REALM}
       KEYCLOAK_CLIENT_ID:    ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
