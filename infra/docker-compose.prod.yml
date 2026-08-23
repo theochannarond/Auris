@@ -1,3 +1,16 @@
+# Reprise automatique sur panne (SCRUM-176), en deux temps :
+#
+#   - "restart: always" ci-dessous couvre le conteneur qui s'arrête — plantage
+#     du processus, tué par manque de mémoire, redémarrage du serveur. Docker
+#     le relance seul, indéfiniment, avec un délai croissant entre les essais.
+#
+#   - Les "healthcheck" couvrent le cas que Docker ne sait PAS traiter : un
+#     conteneur toujours en vie mais qui ne répond plus. Docker se contente
+#     alors de le marquer "unhealthy" sans rien entreprendre ; c'est
+#     infra/scripts/monitor-services.sh qui le redémarre et alerte par email.
+#
+# Les deux sont nécessaires : ni l'un ni l'autre ne couvre les deux cas.
+
 services:
 
   # ─── Base de données PostgreSQL ───

@@ -45,6 +45,17 @@ SMTP_PASSWORD="${SMTP_PASSWORD:-}"
 # La première part immédiatement, les suivantes seulement après ce délai.
 ALERT_COOLDOWN_MIN="${ALERT_COOLDOWN_MIN:-60}"
 
+# Redémarrage automatique des services en panne. Docker relance déjà seul un
+# conteneur qui s'arrête (restart: always dans docker-compose.prod.yml), mais
+# il ne fait rien d'un conteneur qui tourne sans plus répondre : c'est ce trou
+# que la surveillance comble.
+AUTO_RESTART="${AUTO_RESTART:-true}"
+
+# Délai avant de retenter un redémarrage. Garde-fou contre l'acharnement : un
+# service qui retombe aussitôt a un problème que le redémarrage ne résout pas,
+# et le relancer toutes les 5 minutes n'ajouterait que du bruit et des coupures.
+RESTART_COOLDOWN_MIN="${RESTART_COOLDOWN_MIN:-15}"
+
 # ─── Fonctions ───
 log() {
     echo "[$(date +"%Y-%m-%dT%H:%M:%S")] $1" | tee -a "$LOG_FILE"
@@ -169,16 +180,58 @@ send_alert() {
     fi
 }
 
+# Tente de relancer un service en panne et décrit ce qui a été fait, en une
+# phrase destinée au corps de l'alerte.
+#
+# Les traces vont volontairement sur la sortie d'erreur : l'appelant capture la
+# sortie standard de cette fonction, et une ligne de journal s'y retrouverait
+# collée au milieu du message envoyé par email.
+attempt_restart() {
+    local service="$1" state="$2"
+    local marker="${STATE_DIR}/${service}.restart"
+
+    if [ "$AUTO_RESTART" != "true" ]; then
+        echo "Redémarrage automatique désactivé (AUTO_RESTART=${AUTO_RESTART})."
+        return
+    fi
+
+    if [ "$state" = "absent" ]; then
+        echo "Aucun conteneur à redémarrer : il n'existe pas sur ce serveur."
+        return
+    fi
+
+    if [ -f "$marker" ]; then
+        local restart_age_min
+        restart_age_min=$(( ( $(date +%s) - $(stat -c %Y "$marker") ) / 60 ))
+        if [ "$restart_age_min" -lt "$RESTART_COOLDOWN_MIN" ]; then
+            echo "Redémarrage déjà tenté il y a ${restart_age_min} min et le service est retombé : nouvelle tentative différée, une intervention manuelle est probablement nécessaire."
+            return
+        fi
+    fi
+
+    date +%s > "$marker"
+
+    if docker restart "$service" > /dev/null 2>&1; then
+        log "INFO — ${service} redémarré automatiquement" >&2
+        echo "Redémarrage automatique déclenché à $(date --iso-8601=seconds). Le prochain contrôle, dans 5 minutes, dira s'il a suffi."
+    else
+        log "ERREUR — échec du redémarrage automatique de ${service}" >&2
+        echo "Redémarrage automatique tenté, mais la commande docker restart a échoué."
+    fi
+}
+
 notify_failure() {
     local service="$1"
     local state="$2"
+    local restart_outcome="$3"
     local marker="${STATE_DIR}/${service}.down"
 
     if should_alert "$marker"; then
         send_alert \
             "Auris — service indisponible : ${service} (${state})" \
-            "$(printf 'Service   : %s\nÉtat      : %s\nHorodatage: %s\nServeur   : %s\n\n%s' \
+            "$(printf 'Service   : %s\nÉtat      : %s\nHorodatage: %s\nServeur   : %s\n\nAction    : %s\n\n%s' \
                 "$service" "$state" "$(date --iso-8601=seconds)" "$(hostname)" \
+                "$restart_outcome" \
                 "$(failure_details "$service" "$state")")"
         # Le marqueur est réécrit à chaque alerte émise : sa date de
         # modification sert de point de départ au délai de silence.
@@ -226,7 +279,10 @@ for service in "${SERVICES[@]}"; do
             if [ -f "$marker" ]; then
                 log "INFO — ${service} de nouveau disponible (état : ${state})"
                 notify_recovery "$service"
-                rm -f "$marker"
+                # Le marqueur de redémarrage part avec : une panne ultérieure,
+                # sans rapport avec celle-ci, doit pouvoir être traitée tout de
+                # suite plutôt que d'attendre la fin d'un délai déjà obsolète.
+                rm -f "$marker" "${STATE_DIR}/${service}.restart"
             fi
             ;;
 
@@ -239,7 +295,10 @@ for service in "${SERVICES[@]}"; do
         *)
             failed=$((failed + 1))
             log "ERREUR — ${service} indisponible (état : ${state})"
-            notify_failure "$service" "$state"
+            # On tente la remise en service avant d'alerter, pour que le mail
+            # dise à la fois ce qui ne va pas et ce qui a déjà été entrepris.
+            restart_outcome=$(attempt_restart "$service" "$state")
+            notify_failure "$service" "$state" "$restart_outcome"
             ;;
     esac
 done
