@@ -27,7 +27,15 @@ if [ -f "$MONITORING_ENV_FILE" ]; then
 fi
 
 # ─── Variables ───
-SERVICES=(auris_db auris_backend auris_frontend auris_keycloak auris_nginx)
+# Liste des conteneurs surveillés, surchargeable par MONITORING_SERVICES (noms
+# séparés par des espaces). Sert au test de simulation de panne, qui vise un
+# conteneur jetable : éprouver la chaîne d'alerte ne doit pas exiger de
+# couper un service réel.
+if [ -n "${MONITORING_SERVICES:-}" ]; then
+    read -r -a SERVICES <<< "$MONITORING_SERVICES"
+else
+    SERVICES=(auris_db auris_backend auris_frontend auris_keycloak auris_nginx)
+fi
 
 LOG_FILE="${MONITORING_LOG_FILE:-/var/log/auris/monitoring.log}"
 STATE_DIR="${MONITORING_STATE_DIR:-/var/lib/auris/monitoring}"
