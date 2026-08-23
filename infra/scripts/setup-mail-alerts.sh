@@ -26,8 +26,13 @@ if command -v msmtp > /dev/null 2>&1; then
     echo "✓ msmtp déjà installé ($(msmtp --version | head -n 1))"
 else
     echo "→ Installation de msmtp..."
-    apt-get update -qq
-    apt-get install -y msmtp
+    # Le paquet pose une question sur AppArmor et bloquerait le script s'il
+    # était rejoué sans clavier devant. On y répond d'avance "non" : son profil
+    # AppArmor interdit à msmtp de lancer un programme externe, or c'est ce que
+    # fait --passwordeval pour lire le mot de passe sans l'exposer dans "ps".
+    echo "msmtp msmtp/apparmor boolean false" | debconf-set-selections
+    DEBIAN_FRONTEND=noninteractive apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y msmtp
     echo "✓ msmtp installé"
 fi
 
