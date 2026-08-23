@@ -20,10 +20,13 @@ from app.services.storage_service import check_ovh_health
 
 router = APIRouter(prefix="/api/v1/status", tags=["status"])
 
-# Délai au-delà duquel un service est déclaré injoignable. Volontairement court :
-# les sondes tournent en parallèle, et la page doit rester consultable même
-# quand tout est en panne — c'est précisément là qu'on en a besoin.
-PROBE_TIMEOUT_SEC = 3.0
+# Délai au-delà duquel un service est déclaré injoignable. Les sondes tournent
+# en parallèle : c'est donc aussi le temps d'affichage maximal de la page, qui
+# doit rester consultable quand tout est en panne — c'est là qu'on en a besoin.
+# Fixé à 5 s et non 3 s après mesure en production : la sonde du stockage OVH
+# demande à elle seule 1,7 s, et une marge trop courte la ferait afficher en
+# panne au moindre ralentissement du fournisseur.
+PROBE_TIMEOUT_SEC = 5.0
 
 
 def _result(name: str, label: str, status: str, started: float, error: str | None = None) -> dict:
