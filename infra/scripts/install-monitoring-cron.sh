@@ -21,7 +21,10 @@ mkdir -p /var/log/auris
 mkdir -p /var/lib/auris/monitoring
 
 # ─── Script de surveillance ───
-chmod +x "${SCRIPT_DIR}/monitor-services.sh"
+# Volontairement aucun "chmod +x" ici : le script vit dans le dépôt cloné et
+# git suit les permissions. Le rendre exécutable le ferait apparaître comme
+# modifié localement, et le "git pull" du déploiement refuserait de l'écraser.
+# Le cron l'invoque de toute façon par "bash monitor-services.sh".
 
 # ─── Cron job ───
 # Le nom du fichier ne doit pas contenir de point : cron ignore
