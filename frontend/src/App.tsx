@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage'
 import MeetingDetailPage from './pages/MeetingDetailPage'
 import DictaphonePage from './pages/DictaphonePage'
 import VideoModePage from './pages/VideoModePage'
+import AdminStatusPage from './pages/AdminStatusPage'
 import OfflineBanner from './components/ui/OfflineBanner'
 
 const KEYCLOAK_URL       = import.meta.env.VITE_KEYCLOAK_URL    || "http://localhost:8080";
@@ -84,6 +85,7 @@ function AppRoutes() {
       <Route path="/meetings/:meetingId" element={token ? <MeetingDetailPage /> : <Navigate to="/" replace />} />
       <Route path="/dictaphone"          element={token ? <DictaphonePage /> : <Navigate to="/" replace />} />
       <Route path="/video"               element={token ? <VideoModePage /> : <Navigate to="/" replace />} />
+      <Route path="/admin/status"        element={token ? <AdminStatusPage /> : <Navigate to="/" replace />} />
       <Route path="*"                    element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     VOXTRAL_MODEL:        str = "voxtral-mini-latest"
     VOXTRAL_TIMEOUT_SEC:  float = 300.0
     MAX_RETRY_COUNT: int = 3
+    # Sondes internes du tableau de bord d'administration (SCRUM-176). Ces
+    # noms d'hôte sont ceux du réseau Docker : ils ne résolvent que depuis un
+    # conteneur de la pile, jamais depuis l'extérieur.
+    FRONTEND_HEALTH_URL:  str = "http://frontend:80/"
+    NGINX_HEALTH_URL:     str = "http://nginx:80/nginx-health"
 
     class Config:
         env_file = ".env"
