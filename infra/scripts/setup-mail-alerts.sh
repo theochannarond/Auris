@@ -54,12 +54,14 @@ echo "✓ Droits restreints à root (600)"
 # ─── Suite ───
 # Détecte si le modèle est resté tel quel, pour ne pas laisser croire que
 # les alertes sont opérationnelles alors qu'elles partiraient dans le vide.
-if grep -q "alerte@exemple.fr" "$ENV_FILE"; then
+if grep -qE "alerte@exemple\.fr|mot-de-passe-de-la-boite" "$ENV_FILE"; then
     echo ""
     echo "⚠ La configuration contient encore les valeurs d'exemple."
     echo ""
-    echo "  1. Générez un mot de passe d'application Google (validation en deux"
-    echo "     étapes requise) : https://myaccount.google.com/apppasswords"
+    echo "  1. Créez la boîte d'envoi dans l'espace client OVH :"
+    echo "       Web Cloud → Emails → aurishetic.fr → Comptes de messagerie"
+    echo "     Une boîte dédiée, pas une adresse personnelle : le mot de passe"
+    echo "     stocké sur ce serveur ne doit ouvrir qu'une messagerie vide."
     echo "  2. Renseignez le fichier :"
     echo "       sudo nano ${ENV_FILE}"
     echo "  3. Envoyez une alerte de test :"
