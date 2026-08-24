@@ -462,50 +462,35 @@ Même réflexe après toute modification de `requirements.txt` ou de `package.js
 
 ## Structure du projet
 
-
-
+```
 auris/
-
-├── frontend/             # React + TypeScript + Vite
-
+├── frontend/                    # React + TypeScript + Vite
 │   └── src/
-
-│       ├── assets/       # Images, icônes, fonts
-
-│       ├── components/   # Composants réutilisables
-
-│       ├── pages/        # Une page = une route
-
-│       ├── services/     # Appels API vers le backend
-
-│       ├── hooks/        # Custom React hooks
-
-│       ├── store/        # État global
-
-│       ├── types/        # Interfaces TypeScript
-
-│       └── utils/        # Fonctions utilitaires
-
-├── backend/              # FastAPI + Python
-
+│       ├── assets/              # Images, icônes, fonts
+│       ├── components/          # Composants réutilisables
+│       ├── pages/               # Une page = une route
+│       ├── services/            # Appels API et session Keycloak
+│       ├── hooks/               # Custom React hooks
+│       ├── store/               # État global
+│       ├── types/               # Interfaces TypeScript
+│       └── utils/               # Fonctions utilitaires
+├── backend/                     # FastAPI + Python
 │   ├── app/
-
-│   │   ├── api/v1/       # Endpoints REST
-
-│   │   ├── core/         # Configuration centrale
-
-│   │   ├── models/       # SQLAlchemy (tables)
-
-│   │   ├── schemas/      # Pydantic (API I/O)
-
-│   │   └── services/     # Logique métier
-
-│   └── tests/
-
-├── infra/                # Docker Compose
-
-└── docs/                 # Documentation technique
-
+│   │   ├── api/v1/              # Endpoints REST
+│   │   ├── core/                # Configuration, base de données, sécurité
+│   │   ├── models/              # SQLAlchemy (tables)
+│   │   ├── schemas/             # Pydantic (API I/O)
+│   │   └── services/            # Logique métier
+│   └── tests/                   # unit/ et integration/ (pytest)
+├── infra/
+│   ├── docker-compose.yml       # Pile de développement
+│   ├── docker-compose.prod.yml  # Pile de production
+│   ├── nginx.conf               # Proxy inverse de production
+│   ├── keycloak-realm.json      # Realm à importer
+│   └── scripts/                 # Sauvegarde, TLS, surveillance
+├── docs/                        # Documentation technique et captures
+└── .github/workflows/           # Intégration continue
+```
 
 ## Gouvernance
 
