@@ -248,6 +248,88 @@ Les URL de redirection du client `auris-frontend` sont limitées à `http://loca
 
 Le realm de développement est stocké dans la base H2 interne du conteneur Keycloak. **Un `docker compose down -v` le supprime** et impose de recommencer cet import.
 
+## Procédure `docker compose up`
+
+```bash
+docker compose -f infra/docker-compose.yml up
+```
+
+La commande se lance **depuis la racine du dépôt**, avec `-f` pour désigner le fichier. Vous pouvez aussi vous placer dans `infra/` et lancer simplement `docker compose up` — mais rappelez-vous alors que les chemins relatifs changent.
+
+Au premier lancement, Docker télécharge PostgreSQL, Keycloak et Node, puis construit les images du backend et du frontend. **3 à 5 minutes** selon la connexion. Les fois suivantes, une quinzaine de secondes.
+
+### Sortie attendue
+
+Les journaux des quatre services s'entremêlent, préfixés par leur nom. Voici les lignes qui comptent, dans l'ordre où elles apparaissent :
+
+```
+auris_db        | The files belonging to this database system will be owned by user "postgres".
+auris_db        | creating subdirectories ... ok
+auris_db        | sh: locale: not found
+auris_db        | 2026-08-24 13:25:20.494 UTC [36] WARNING:  no usable system locales were found
+...
+auris_db        | PostgreSQL init process complete; ready for start up.
+auris_db        | 2026-08-24 13:25:23.850 UTC [1] LOG:  database system is ready to accept connections
+
+auris_backend   | INFO:     Will watch for changes in these directories: ['/app']
+auris_backend   | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+auris_backend   | INFO:     Started reloader process [1] using WatchFiles
+auris_backend   | INFO:     Application startup complete.
+
+auris_frontend  |   VITE v8.1.5  ready in 2617 ms
+auris_frontend  |   ➜  Local:   http://localhost:5173/
+auris_frontend  |   ➜  Network: http://172.22.0.5:5173/
+
+auris_keycloak  | Updating the configuration and installing your custom providers, if any. Please wait.
+auris_keycloak  | WARN  [io.qua.dep.ind.IndexWrapper] (build-15) Failed to index jakarta.jms.XAConnection: ...
+auris_keycloak  | INFO  [io.qua.dep.QuarkusAugmentor] (main) Quarkus augmentation completed in 40611ms
+auris_keycloak  | INFO  [io.quarkus] (main) Keycloak 24.0.x on JVM ... started in 14.4s. Listening on: http://0.0.0.0:8080
+```
+
+Les quatre lignes qui signent un démarrage réussi :
+
+| Service | Ligne à attendre |
+| ------- | ---------------- |
+| `auris_db` | `database system is ready to accept connections` |
+| `auris_backend` | `Application startup complete.` |
+| `auris_frontend` | `VITE v8.x ready in ...` |
+| `auris_keycloak` | `... started in ...` |
+
+### Ce qui ressemble à une erreur et n'en est pas
+
+Trois familles de messages inquiètent systématiquement, à tort :
+
+- **`sh: locale: not found` et `no usable system locales were found`** — l'image PostgreSQL est basée sur Alpine, qui n'embarque pas les locales système. Sans conséquence.
+- **Une dizaine de `WARN [io.qua.dep.ind.IndexWrapper] Failed to index ...`** côté Keycloak — Quarkus signale des classes optionnelles absentes (ActiveMQ, Spring, JMS). Bruit de démarrage normal.
+- **`Will watch for changes in these directories`** côté backend — c'est le rechargement à chaud d'uvicorn, attendu en développement. En production, cette ligne ne doit pas apparaître.
+
+**Keycloak est de loin le plus lent.** Comptez une minute entre `Please wait.` et `started in` : l'augmentation Quarkus a pris 40 secondes lors de notre test. Pendant tout ce temps, `localhost:8080` refuse la connexion. C'est le faux problème numéro un du projet.
+
+### Vérifier l'état des conteneurs
+
+```bash
+docker compose -f infra/docker-compose.yml ps
+```
+
+```
+NAME             IMAGE                           STATUS          PORTS
+auris_backend    infra-backend                   Up 2 minutes    0.0.0.0:8000->8000/tcp
+auris_db         postgres:16-alpine              Up 2 minutes    0.0.0.0:5432->5432/tcp
+auris_frontend   infra-frontend                  Up 2 minutes    0.0.0.0:5173->5173/tcp
+auris_keycloak   quay.io/keycloak/keycloak:24.0  Up 2 minutes    0.0.0.0:8080->8080/tcp
+```
+
+Les quatre doivent être `Up`. `auris_db` affiche en plus `(healthy)` : c'est le seul à déclarer une sonde en développement.
+
+### Arrêter
+
+```bash
+docker compose -f infra/docker-compose.yml down     # arrête et supprime les conteneurs
+docker compose -f infra/docker-compose.yml down -v  # supprime AUSSI les volumes
+```
+
+**`down -v` efface la base PostgreSQL et le realm Keycloak.** Il faudra tout réimporter et recréer l'utilisateur de test. À n'utiliser que pour repartir volontairement de zéro.
+
 ## Structure du projet
 
 
