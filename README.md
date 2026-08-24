@@ -165,6 +165,89 @@ Il existe un deuxième fichier d'exemple, destiné à ceux qui lancent le backen
 
 Pour une installation normale via Docker, **ignorez-le** : seul `infra/.env` est lu.
 
+## Import du realm Keycloak
+
+Un realm Keycloak est un espace d'authentification isolé : ses utilisateurs, ses clients et ses règles. Celui d'Auris est versionné dans `infra/keycloak-realm.json` et doit être importé **une fois** après le premier démarrage.
+
+Sans lui, la connexion échoue avec une page *« We are sorry… Realm does not exist »*.
+
+### 1. Ouvrir la console d'administration
+
+Rendez-vous sur http://localhost:8080 et cliquez sur **Administration console**. Identifiez-vous avec les valeurs `KEYCLOAK_ADMIN` et `KEYCLOAK_ADMIN_PASSWORD` de votre `infra/.env` — par défaut `admin` / `your-admin-password`.
+
+```bash
+grep '^KEYCLOAK_ADMIN' infra/.env
+```
+
+Ces identifiants n'ont **rien à voir avec ceux de la production**. Le Keycloak local et celui du serveur sont deux instances indépendantes, chacune avec sa propre base et son propre compte d'administration : celui de la production vit dans `/opt/auris/.env.prod` sur le VPS et n'a aucune validité ici.
+
+Ces deux variables ne sont lues qu'au **tout premier** démarrage du conteneur, lorsqu'il crée son compte d'administration. Les modifier ensuite dans `infra/.env` n'a aucun effet.
+
+Si la page ne répond pas, laissez-lui une minute : Keycloak est le plus lent des quatre services à démarrer.
+
+### 2. Créer le realm à partir du fichier
+
+Dépliez le sélecteur de realm, en haut à gauche — il affiche `master` sur une installation neuve — puis cliquez sur **Create realm**.
+
+![Sélecteur de realm et bouton Create realm](docs/images/keycloak-01-create-realm.png)
+
+Sur la page qui s'ouvre, utilisez le champ **Resource file** pour charger `infra/keycloak-realm.json`. Le champ *Realm name* se remplit automatiquement avec `auris` : c'est le signe que le fichier a bien été lu. Cliquez sur **Create**.
+
+![Import du fichier keycloak-realm.json](docs/images/keycloak-02-import-file.png)
+
+### 3. Vérifier les clients importés
+
+Dans le menu de gauche, ouvrez **Clients**. La liste en contient une huitaine : `account`, `admin-cli`, `broker` et les autres sont créés d'office par Keycloak pour son propre fonctionnement. **Les deux qui nous intéressent sont `auris-backend` et `auris-frontend`** — s'ils y sont, l'import a réussi.
+
+![Liste des clients du realm auris](docs/images/keycloak-03-clients.png)
+
+| Client | Type | Rôle |
+| ------ | ---- | ---- |
+| `auris-frontend` | public | utilisé par le navigateur, sans secret — un secret dans du code JavaScript serait lisible par tous |
+| `auris-backend` | confidentiel | utilisé par l'API, protégé par un secret |
+
+L'export définit aussi deux rôles, `user` et `admin`.
+
+### 4. Récupérer le secret du client backend
+
+**Le fichier d'export ne contient aucun secret** : Keycloak en génère un neuf à chaque import. Il faut donc aller le chercher.
+
+Ouvrez `auris-backend`, puis l'onglet **Credentials**. Copiez la valeur du champ *Client Secret*.
+
+![Onglet Credentials du client auris-backend](docs/images/keycloak-04-client-secret.png)
+
+Collez-la dans `infra/.env` :
+
+```
+KEYCLOAK_CLIENT_SECRET=le-secret-copié
+```
+
+Puis relancez le backend pour qu'il la prenne en compte :
+
+```bash
+docker compose -f infra/docker-compose.yml restart backend
+```
+
+### 5. Créer un utilisateur de test
+
+**L'export ne contient aucun utilisateur.** Sans cette étape, vous n'aurez personne avec qui vous connecter.
+
+Menu **Users** → **Add user**. Renseignez le nom d'utilisateur, l'email, **le prénom et le nom**, et activez *Email verified*.
+
+![Formulaire de création d'utilisateur](docs/images/keycloak-05-create-user.png)
+
+Le prénom et le nom ne sont pas facultatifs en pratique : depuis Keycloak 23, l'action *Verify Profile* est active par défaut et réclame ces champs à la première connexion. Les remplir tout de suite évite un formulaire surprise au milieu de la démonstration.
+
+Une fois l'utilisateur créé, ouvrez son onglet **Credentials** → **Set password**. Saisissez le mot de passe deux fois et, surtout, **basculez *Temporary* sur `Off`** — sinon Keycloak exigera un changement de mot de passe dès la première connexion.
+
+![Définition du mot de passe, Temporary sur Off](docs/images/keycloak-06-set-password.png)
+
+### À savoir
+
+Les URL de redirection du client `auris-frontend` sont limitées à `http://localhost:5173/*`. C'est volontaire : cet export sert au développement local. Un déploiement sur un autre domaine impose d'ajouter l'URL correspondante dans *Clients → auris-frontend → Valid redirect URIs*, faute de quoi Keycloak refusera la redirection après connexion.
+
+Le realm de développement est stocké dans la base H2 interne du conteneur Keycloak. **Un `docker compose down -v` le supprime** et impose de recommencer cet import.
+
 ## Structure du projet
 
 
