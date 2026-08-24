@@ -124,6 +124,47 @@ Le code du backend et du frontend est monté depuis votre disque : **vos modific
 docker compose -f infra/docker-compose.yml up --build
 ```
 
+## Variables d'environnement
+
+Toute la configuration passe par un seul fichier, **`infra/.env`**, créé à partir de `.env.example`. Il n'est jamais versionné : `.gitignore` exclut `.env` et `.env.*`, à l'exception des modèles `*.example`.
+
+### Ce qui est nécessaire pour démarrer en local
+
+| Variable | Valeur locale | Rôle |
+| -------- | ------------- | ---- |
+| `POSTGRES_USER` | `auris` | identifiant PostgreSQL, créé au premier démarrage |
+| `POSTGRES_PASSWORD` | libre | mot de passe PostgreSQL |
+| `KEYCLOAK_ADMIN` | `admin` | compte d'administration de la console Keycloak |
+| `KEYCLOAK_ADMIN_PASSWORD` | libre | mot de passe de ce compte |
+| `KEYCLOAK_URL` | `http://keycloak:8080` | **nom du service Docker**, pas `localhost` |
+| `KEYCLOAK_REALM` | `auris` | doit correspondre au realm importé |
+| `KEYCLOAK_CLIENT_ID` | `auris-backend` | client confidentiel utilisé par l'API |
+| `KEYCLOAK_CLIENT_SECRET` | *à récupérer* | généré à l'import du realm, voir la section Keycloak |
+
+### Ce qui peut rester vide au début
+
+Ces variables ne bloquent pas le démarrage. Elles ne servent qu'aux fonctionnalités correspondantes, qui échoueront proprement tant qu'elles ne sont pas renseignées.
+
+| Variable | Sans elle |
+| -------- | --------- |
+| `MISTRAL_API_KEY` | pas de transcription ni de résumé |
+| `OVH_ACCESS_KEY`, `OVH_SECRET_KEY`, `OVH_BUCKET_NAME` | l'audio bascule sur le stockage local de repli |
+| `VEXA_API_KEY`, `VEXA_WEBHOOK_SECRET` | pas de capture de réunion visio |
+
+### Trois pièges à connaître
+
+**`KEYCLOAK_URL` prend le nom du service Docker, pas `localhost`.** C'est le backend qui appelle cette URL, depuis l'intérieur du réseau Docker, où `localhost` désigne son propre conteneur. `http://localhost:8080` n'est correct que si vous lancez le backend directement sur votre machine.
+
+**`DATABASE_URL` est ignorée par Docker Compose.** Le fichier de composition reconstruit lui-même l'URL à partir de `POSTGRES_USER` et `POSTGRES_PASSWORD`. Modifier `DATABASE_URL` en espérant changer la base à laquelle se connecte le conteneur n'a aucun effet — elle ne sert que si vous lancez le backend hors conteneur, ou pour les migrations Alembic.
+
+**Les variables `VITE_*` ne servent pas en développement local.** Le compose ne les transmet pas au conteneur frontend, qui retombe sur ses valeurs par défaut — lesquelles conviennent en local. Elles ne comptent qu'à la **construction** de l'image de production, où Vite les écrit en dur dans le bundle. Les définir au démarrage d'un conteneur de production n'aurait aucun effet.
+
+### Le second modèle, `backend/.env.example`
+
+Il existe un deuxième fichier d'exemple, destiné à ceux qui lancent le backend **hors conteneur** (`uvicorn` directement sur la machine). Il contient quelques variables absentes du modèle racine — `OVH_ENDPOINT_URL`, `OVH_REGION`, `OVH_BACKUP_BUCKET` — qui ont des valeurs par défaut dans le code et que le compose de développement ne transmet pas.
+
+Pour une installation normale via Docker, **ignorez-le** : seul `infra/.env` est lu.
+
 ## Structure du projet
 
 
