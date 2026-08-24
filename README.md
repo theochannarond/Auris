@@ -330,6 +330,136 @@ docker compose -f infra/docker-compose.yml down -v  # supprime AUSSI les volumes
 
 **`down -v` efface la base PostgreSQL et le realm Keycloak.** Il faudra tout réimporter et recréer l'utilisateur de test. À n'utiliser que pour repartir volontairement de zéro.
 
+## Dépannage
+
+Les cinq problèmes que l'équipe a réellement rencontrés, avec le message d'erreur exact pour pouvoir le retrouver par recherche.
+
+Avant tout, le réflexe utile : isoler les journaux d'**un seul** service plutôt que de lire les quatre mélangés.
+
+```bash
+docker compose -f infra/docker-compose.yml logs backend
+docker compose -f infra/docker-compose.yml logs -f keycloak   # en continu
+```
+
+### 1. Le moteur Docker n'est pas démarré
+
+```
+error during connect: Get "http://%2F%2F.%2Fpipe%2FdockerDesktopLinuxEngine/v1.47/images/...":
+open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+```
+
+Sous Linux, le même problème s'annonce ainsi :
+
+```
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+```
+
+**Cause** : Docker Desktop n'est pas lancé, ou n'a pas fini de démarrer.
+
+**Solution** : lancez Docker Desktop et attendez que l'icône cesse de s'animer — elle doit indiquer *Engine running*. Comptez une trentaine de secondes. Sous Linux : `sudo systemctl start docker`.
+
+### 2. Un port est déjà occupé
+
+```
+Error response from daemon: Ports are not available: exposing port TCP 0.0.0.0:5432 ->
+0.0.0.0:0: listen tcp 0.0.0.0:5432: bind: address already in use
+```
+
+**Cause** : un autre programme occupe déjà le port. Le cas le plus fréquent est un PostgreSQL installé directement sur la machine, qui monopolise le 5432. Les ports utilisés par le projet sont **5432**, **8000**, **8080** et **5173**.
+
+**Identifier le coupable** :
+
+```powershell
+netstat -ano | findstr :5432        # Windows — la dernière colonne est le PID
+```
+
+```bash
+lsof -i :5432                       # macOS / Linux
+```
+
+**Solution** : arrêter le programme en question, ou modifier le port publié dans `infra/docker-compose.yml` — par exemple `"5433:5432"`, qui déplace le port côté machine sans rien changer à l'intérieur du réseau Docker.
+
+### 3. Le fichier `.env` n'est pas au bon endroit
+
+```
+WARN[0000] The "POSTGRES_USER" variable is not set. Defaulting to a blank string.
+WARN[0000] The "POSTGRES_PASSWORD" variable is not set. Defaulting to a blank string.
+```
+
+suivi, un peu plus loin, de :
+
+```
+auris_db | Error: Database is uninitialized and superuser password is not specified.
+```
+
+**Cause** : le `.env` a été placé à la racine du dépôt. Docker Compose lit son `.env` dans le dossier du fichier de composition, donc `infra/.env` — celui de la racine est purement ignoré.
+
+**Solution** :
+
+```bash
+cp .env.example infra/.env
+```
+
+**Vérifier** que les variables sont bien résolues, sans lancer quoi que ce soit :
+
+```bash
+docker compose -f infra/docker-compose.yml config
+```
+
+Aucun avertissement `variable is not set` ne doit apparaître.
+
+### 4. Keycloak ne répond pas, ou le realm est introuvable
+
+`localhost:8080` renvoie `ERR_CONNECTION_REFUSED` alors que le conteneur est `Up`.
+
+**Cause** : Keycloak n'a pas fini de démarrer. Il lui faut environ une minute, dont 40 secondes d'augmentation Quarkus.
+
+**Solution** : attendre la ligne `started in` dans `docker compose -f infra/docker-compose.yml logs keycloak`. Ne relancez pas la pile, vous ne feriez que repartir de zéro.
+
+Si la console s'affiche mais que la connexion à l'application échoue avec :
+
+```
+We are sorry... Realm does not exist
+```
+
+**Cause** : le realm `auris` n'a jamais été importé, ou il a été effacé par un `down -v`.
+
+**Solution** : refaire l'[import du realm](#import-du-realm-keycloak).
+
+### 5. Toutes les routes de l'API renvoient 401
+
+Vous êtes connecté, mais chaque appel échoue et le dashboard reste vide.
+
+**Cause la plus fréquente** : `KEYCLOAK_CLIENT_SECRET` est resté à sa valeur d'exemple, ou le backend n'a pas été relancé après l'avoir renseigné. Le secret est généré à l'import du realm et n'existe donc pas avant.
+
+**Vérifier ce que voit réellement le conteneur** :
+
+```bash
+docker compose -f infra/docker-compose.yml exec backend env | grep KEYCLOAK
+```
+
+**Solution** : copier le secret depuis *Clients → auris-backend → Credentials*, le coller dans `infra/.env`, puis :
+
+```bash
+docker compose -f infra/docker-compose.yml restart backend
+```
+
+**Autre cause possible** : votre session a expiré. Les jetons Keycloak durent quelques minutes ; l'application les renouvelle automatiquement, mais si le renouvellement échoue vous êtes renvoyé vers la page de connexion.
+
+### Après un `git pull` : le frontend ne répond plus
+
+`localhost:5173` renvoie `ERR_CONNECTION_REFUSED` alors que `auris_frontend` est bien `Up`.
+
+**Cause** : `docker compose up` ne reconstruit pas une image qui existe déjà. Si le `Dockerfile` a changé depuis votre dernier build, vous faites tourner l'ancienne.
+
+**Solution** :
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
+Même réflexe après toute modification de `requirements.txt` ou de `package.json`.
+
 ## Structure du projet
 
 
