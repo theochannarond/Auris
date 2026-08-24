@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
 
   # ─── Base de données PostgreSQL ───
@@ -56,6 +54,11 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      # Sans cette cible, Compose construirait la dernière étape du Dockerfile,
+      # c'est-à-dire l'image de production : un bundle figé servi par nginx sur
+      # le port 80, incompatible avec le 5173 publié ci-dessous et le montage
+      # des sources. L'étape "dev" lance le serveur Vite avec rechargement.
+      target: dev
     container_name: auris_frontend
     restart: unless-stopped
     environment:

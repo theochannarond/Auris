@@ -1,9 +1,33 @@
 # syntax=docker/dockerfile:1
 
-# ─── Étape 1 : construction du bundle ───
-FROM node:22-alpine AS build
+# ─── Étape commune : dépendances ───
+# Même version de Node que la CI, et npm ci plutôt que npm install pour
+# installer exactement les versions du package-lock.json
+FROM node:22-alpine AS deps
 
 WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# ─── Étape de développement ───
+# Cible utilisée par infra/docker-compose.yml (target: dev). Sans elle, le
+# compose de développement construisait l'image de production : nginx servait
+# un bundle figé sur le port 80, alors que le compose publie le 5173 et monte
+# les sources depuis l'hôte. Résultat, localhost:5173 ne répondait pas et le
+# rechargement à chaud ne fonctionnait plus.
+#
+# --host 0.0.0.0 est indispensable : par défaut Vite n'écoute que sur la
+# boucle locale du conteneur, donc reste injoignable depuis la machine hôte.
+FROM deps AS dev
+
+COPY . .
+
+EXPOSE 5173
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+# ─── Étape de construction du bundle ───
+FROM deps AS build
 
 # Vite lit les variables VITE_* au moment du BUILD et écrit leurs valeurs en
 # dur dans les fichiers JS générés. Les fournir au démarrage du conteneur
@@ -15,17 +39,13 @@ ENV VITE_KEYCLOAK_URL=${VITE_KEYCLOAK_URL} \
     VITE_KEYCLOAK_REALM=${VITE_KEYCLOAK_REALM} \
     VITE_KEYCLOAK_CLIENT_ID=${VITE_KEYCLOAK_CLIENT_ID}
 
-# Même version de Node que la CI, et npm ci plutôt que npm install pour
-# installer exactement les versions du package-lock.json
-COPY package.json package-lock.json ./
-RUN npm ci
-
 COPY . .
 RUN npm run build
 
-# ─── Étape 2 : service des fichiers statiques ───
-# Plus de serveur de développement en production : nginx sert le contenu de
-# dist/, sans Node ni sources dans l'image finale.
+# ─── Étape finale : service des fichiers statiques ───
+# Dernière étape du fichier, donc celle produite par défaut : un "docker build"
+# sans --target donne bien l'image de production. Plus de serveur de
+# développement ici, nginx sert le contenu de dist/, sans Node ni sources.
 FROM nginx:alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html
