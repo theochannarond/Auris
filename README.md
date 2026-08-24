@@ -51,6 +51,79 @@ Ne prenez pas une version supérieure « pour être tranquille » : si vos tests
 - **8 Go de RAM** au minimum. Les quatre conteneurs cohabitent, et Keycloak à lui seul demande environ 1 Go.
 - **5 Go d'espace disque** pour les images et le volume PostgreSQL.
 
+## Installation
+
+Comptez une dizaine de minutes au premier lancement, dont l'essentiel en téléchargement d'images.
+
+### 1. Cloner le dépôt
+
+```bash
+git clone https://github.com/theochannarond/Auris.git
+cd Auris
+```
+
+### 2. Créer le fichier d'environnement
+
+**Le fichier va dans `infra/`, pas à la racine du dépôt.** C'est le piège le plus coûteux du projet : Docker Compose cherche son `.env` dans le dossier du fichier de composition, donc un `.env` placé à la racine est purement et simplement ignoré. La pile démarre quand même, avec toutes les variables vides, et échoue plus tard de façon incompréhensible.
+
+```bash
+cp .env.example infra/.env          # macOS / Linux
+```
+
+```powershell
+Copy-Item .env.example infra\.env   # Windows PowerShell
+```
+
+Les valeurs d'exemple suffisent pour un premier démarrage. Deux d'entre elles devront être renseignées ensuite : `KEYCLOAK_CLIENT_SECRET` à l'étape 4, et `MISTRAL_API_KEY` le jour où vous voudrez transcrire. Le détail de chaque variable est dans la [section dédiée](#variables-denvironnement).
+
+### 3. Lancer la pile
+
+```bash
+docker compose -f infra/docker-compose.yml up
+```
+
+Le premier lancement construit les images et télécharge PostgreSQL, Keycloak et Node : **3 à 5 minutes** selon votre connexion. Gardez ce terminal ouvert, les journaux des quatre services s'y affichent. La [sortie attendue](#procédure-docker-compose-up) est documentée plus bas.
+
+**Keycloak met environ une minute de plus que les autres à répondre.** Tant qu'il n'a pas affiché `started in`, `localhost:8080` refuse la connexion — ce n'est pas une panne.
+
+### 4. Importer le realm Keycloak et récupérer le secret client
+
+L'authentification ne fonctionnera pas tant que le realm `auris` n'existe pas. La procédure complète est décrite dans la [section Keycloak](#import-du-realm-keycloak). En résumé : importer `infra/keycloak-realm.json`, copier le secret du client `auris-backend`, le coller dans `infra/.env`, puis relancer le backend :
+
+```bash
+docker compose -f infra/docker-compose.yml restart backend
+```
+
+### 5. Créer un utilisateur de test
+
+L'export du realm ne contient **aucun utilisateur** — il faut en créer un pour pouvoir se connecter. La marche à suivre est dans la même section Keycloak.
+
+### 6. Vérifier que tout répond
+
+| Service | URL | Attendu |
+| ------- | --- | ------- |
+| Frontend | http://localhost:5173 | page de connexion Auris |
+| API — documentation | http://localhost:8000/docs | interface Swagger |
+| API — santé | http://localhost:8000/health | `{"status":"ok",...}` |
+| Keycloak | http://localhost:8080 | console d'administration |
+| PostgreSQL | `localhost:5432` | accessible via un client SQL |
+
+### Les fois suivantes
+
+```bash
+docker compose -f infra/docker-compose.yml up -d       # en arrière-plan
+docker compose -f infra/docker-compose.yml logs -f     # suivre les journaux
+docker compose -f infra/docker-compose.yml down        # arrêter
+```
+
+Les images étant déjà construites et le volume PostgreSQL conservé, le démarrage tombe à une quinzaine de secondes — Keycloak mis à part.
+
+Le code du backend et du frontend est monté depuis votre disque : **vos modifications sont prises en compte sans reconstruire l'image**, uvicorn et Vite rechargent tout seuls. Une reconstruction n'est nécessaire qu'après une modification de `requirements.txt` ou de `package.json` :
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
 ## Structure du projet
 
 
@@ -97,21 +170,6 @@ auris/
 
 └── docs/                 # Documentation technique
 
-
-## Démarrage rapide
-
-```bash
-# Cloner le repo
-git clone https://github.com/theochannarond/Auris.git
-cd Auris
-
-# Configurer les variables d'environnement
-copy .env.example .env
-# Remplir .env avec vos vraies clés
-
-# Lancer tous les services
-docker-compose up
-```
 
 ## Gouvernance
 
