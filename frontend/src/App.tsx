@@ -8,6 +8,8 @@ import DictaphonePage from './pages/DictaphonePage'
 import VideoModePage from './pages/VideoModePage'
 import AdminStatusPage from './pages/AdminStatusPage'
 import OfflineBanner from './components/ui/OfflineBanner'
+import { getAccessToken, storeTokens } from './services/auth'
+import { apiFetch } from './services/api'
 
 const KEYCLOAK_URL       = import.meta.env.VITE_KEYCLOAK_URL    || "http://localhost:8080";
 const KEYCLOAK_REALM     = import.meta.env.VITE_KEYCLOAK_REALM  || "auris";
@@ -19,7 +21,7 @@ function ConsentRoute() {
 }
 
 function AppRoutes() {
-  const [token, setToken]     = useState<string | null>(localStorage.getItem("access_token"));
+  const [token, setToken]     = useState<string | null>(getAccessToken());
   const [loading, setLoading] = useState(false);
   const navigate              = useNavigate();
 
@@ -47,14 +49,15 @@ function AppRoutes() {
       .then(res => res.json())
       .then(data => {
           if (data.access_token) {
-            localStorage.setItem("access_token", data.access_token);
+            // storeTokens conserve aussi le refresh_token et la date
+            // d'expiration, que cet échange renvoyait déjà mais qu'on jetait :
+            // sans eux, impossible de prolonger la session (cf. services/auth.ts).
+            storeTokens(data);
             setToken(data.access_token);
 
             // Crée l'utilisateur en base si première connexion
-            fetch("/api/v1/auth/register", {
-              method: "POST",
-              headers: { "Authorization": `Bearer ${data.access_token}` }
-            }).then(() => navigate("/dashboard"));
+            apiFetch("/api/v1/auth/register", { method: "POST" })
+              .then(() => navigate("/dashboard"));
           }
         })
       .catch(console.error)
@@ -63,10 +66,9 @@ function AppRoutes() {
 
   useEffect(() => {
     if (!token) return;
-    fetch("/api/v1/auth/register", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${token}` }
-    }).catch(console.error);
+    // apiFetch plutôt que fetch : l'appel bénéficie ainsi du renouvellement
+    // automatique du jeton, comme tous les autres appels de l'application.
+    apiFetch("/api/v1/auth/register", { method: "POST" }).catch(console.error);
   }, [token]);
 
   if (loading) {
