@@ -1,3 +1,16 @@
+# Reprise automatique sur panne (SCRUM-176), en deux temps :
+#
+#   - "restart: always" ci-dessous couvre le conteneur qui s'arrête — plantage
+#     du processus, tué par manque de mémoire, redémarrage du serveur. Docker
+#     le relance seul, indéfiniment, avec un délai croissant entre les essais.
+#
+#   - Les "healthcheck" couvrent le cas que Docker ne sait PAS traiter : un
+#     conteneur toujours en vie mais qui ne répond plus. Docker se contente
+#     alors de le marquer "unhealthy" sans rien entreprendre ; c'est
+#     infra/scripts/monitor-services.sh qui le redémarre et alerte par email.
+#
+# Les deux sont nécessaires : ni l'un ni l'autre ne couvre les deux cas.
+
 services:
 
   # ─── Base de données PostgreSQL ───
@@ -18,15 +31,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      # Laisse à PostgreSQL le temps d'initialiser son volume au tout premier
+      # démarrage : sans ça les échecs de cette phase comptent dans "retries".
+      start_period: 30s
 
   # ─── Backend FastAPI ───
   backend:
     image: ghcr.io/theochannarond/auris-backend:latest
     container_name: auris_backend
     restart: always
+    # Le Dockerfile lance uvicorn avec --reload, indispensable en développement
+    # où le code est monté depuis l'hôte. En production le code est figé dans
+    # l'image : surveiller les fichiers ne sert à rien et coûte un processus.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       DATABASE_URL:          postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/auris
-      KEYCLOAK_URL:          http://keycloak:8080
+      # Le suffixe /auth est indispensable : Keycloak tourne ici sous ce
+      # préfixe (KC_HTTP_RELATIVE_PATH), donc les clés publiques servant à
+      # valider les jetons sont à /auth/realms/... et non à /realms/...
+      # Sans lui le backend récupérait un 404 et toutes les routes
+      # authentifiées échouaient — sans que ça se voie, App.tsx avalant
+      # l'erreur. En développement Keycloak sert à la racine : ne pas
+      # reporter ce suffixe dans docker-compose.yml.
+      KEYCLOAK_URL:          http://keycloak:8080/auth
       KEYCLOAK_REALM:        ${KEYCLOAK_REALM}
       KEYCLOAK_CLIENT_ID:    ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
@@ -48,28 +75,55 @@ services:
         condition: service_healthy
     networks:
       - auris_network
+    # /health/db plutôt que /health : cette route ne fait qu'un SELECT 1 local
+    # et répond en quelques millisecondes. /health interroge en plus le stockage
+    # OVH — une lenteur côté OVH marquerait le backend "unhealthy" alors qu'il
+    # va très bien. Le détail par dépendance est exposé sur le dashboard admin.
+    # Pas de curl dans l'image python:3.12-slim, d'où urllib. Et 127.0.0.1
+    # plutôt que localhost, comme pour les autres sondes : uvicorn n'écoute
+    # qu'en IPv4, un résolveur qui tenterait ::1 échouerait sans raison.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/db', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   # ─── Frontend React ───
   frontend:
     image: ghcr.io/theochannarond/auris-frontend:latest
     container_name: auris_frontend
     restart: always
-    environment:
-      VITE_API_PROXY_TARGET:    http://backend:8000
-      VITE_KEYCLOAK_URL:        ${VITE_KEYCLOAK_URL}
-      VITE_KEYCLOAK_REALM:      ${VITE_KEYCLOAK_REALM}
-      VITE_KEYCLOAK_CLIENT_ID:  ${VITE_KEYCLOAK_CLIENT_ID}
+    # Aucune variable ici : l'image ne contient plus que des fichiers statiques
+    # servis par nginx. Les VITE_* sont figées dans le bundle au moment de la
+    # construction de l'image (arguments de build, voir ci.yml) — les définir
+    # au démarrage n'aurait aucun effet.
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - auris_network
+    # wget est fourni par busybox dans l'image alpine — pas besoin de curl.
+    # 127.0.0.1 et non localhost : le /etc/hosts d'Alpine associe localhost à
+    # la fois à 127.0.0.1 et à ::1, or "listen 80" n'écoute qu'en IPv4. Le wget
+    # de busybox essaie ::1 en premier et échoue sur un serveur pourtant sain.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ─── Keycloak Auth ───
   keycloak:
     image: quay.io/keycloak/keycloak:24.0
     container_name: auris_keycloak
     restart: always
-    command: start --optimized
+    # Pas de --optimized : ce drapeau saute l'étape d'augmentation, or c'est
+    # elle qui embarque le pilote PostgreSQL. L'image officielle est augmentée
+    # pour H2, donc avec --optimized Keycloak ignorait KC_DB et tentait
+    # d'ouvrir l'URL jdbc:postgresql avec le pilote H2.
+    command: start
     environment:
       KEYCLOAK_ADMIN:          ${KEYCLOAK_ADMIN}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
@@ -80,11 +134,37 @@ services:
       KC_HOSTNAME:             ${KC_HOSTNAME}
       KC_PROXY:                edge
       KC_HTTP_ENABLED:         "true"
+      # Keycloak est exposé derrière nginx sous /auth. Sans ce préfixe, il
+      # génère ses URL de redirection à la racine et la connexion boucle.
+      KC_HTTP_RELATIVE_PATH:   /auth
+      # Expose /auth/health/ready, sans quoi Keycloak renvoie 404 dessus.
+      # En 24.x ces routes sont servies sur le port applicatif ; le port
+      # d'administration 9000 dédié n'arrive qu'en 25.
+      KC_HEALTH_ENABLED:       "true"
     depends_on:
       db:
         condition: service_healthy
     networks:
       - auris_network
+    # L'image Keycloak est bâtie sur ubi9-micro : ni curl ni wget. On ouvre
+    # donc la socket à la main via /dev/tcp, une fonctionnalité de bash.
+    # On teste la ligne de statut HTTP et non le contenu JSON : Keycloak
+    # répond 503 tant qu'il n'est pas prêt, ce qui est sans ambiguïté, alors
+    # que chercher "UP" dans le corps peut matcher un sous-contrôle imbriqué
+    # dans un rapport globalement DOWN.
+    # start_period généreux : Keycloak met une quinzaine de secondes à démarrer
+    # et applique ses migrations de schéma au premier lancement.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080 &&
+          printf 'GET /auth/health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '^HTTP/1.1 200' <&3
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
 
   # ─── nginx reverse proxy ───
   nginx:
@@ -99,11 +179,26 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
     depends_on:
-      - frontend
-      - backend
-      - keycloak
+      # nginx ne résout les noms de ses proxy_pass qu'au chargement de sa
+      # configuration : le démarrer une fois ses upstreams réellement prêts
+      # évite qu'il mémorise une IP périmée et réponde 502.
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      # Volontairement "service_started" et non "service_healthy" pour
+      # Keycloak : si un jour sa sonde se casse, on veut perdre /auth, pas
+      # le site entier — nginx doit pouvoir démarrer sans lui.
+      keycloak:
+        condition: service_started
     networks:
       - auris_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   postgres_data:

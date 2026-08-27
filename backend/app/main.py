@@ -11,6 +11,7 @@ from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.transcriptions import router as transcriptions_router
 from app.api.v1.summaries import router as summaries_router
 from app.api.v1.metrics import router as metrics_router
+from app.api.v1.status import router as status_router
 from app.services.storage_service import check_ovh_health
 
 # Configure les logs JSON dès le démarrage
@@ -73,6 +74,7 @@ app.include_router(webhooks_router)
 app.include_router(transcriptions_router)
 app.include_router(summaries_router)
 app.include_router(metrics_router)
+app.include_router(status_router)
 
 
 @app.get("/health")

@@ -39,6 +39,12 @@ export default function DashboardPage() {
         >
           + Réunion vidéo
         </Link>
+        <Link
+          to="/admin/status"
+          className="px-4 py-2 rounded-lg border border-gray-300 text-gray-600 text-sm no-underline ml-auto"
+        >
+          État des services
+        </Link>
       </div>
 
       {loading && (

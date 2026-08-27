@@ -1,0 +1,20 @@
+# Cron job — surveillance des services Docker Auris (SCRUM-176)
+# À installer sur le VPS OVH avec : bash install-monitoring-cron.sh
+# Ou copier manuellement dans /etc/cron.d/auris-monitoring
+
+# ─── Variables d'environnement ───
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO=""
+
+# ─── Contrôle des services toutes les 5 minutes ───
+# Le script est appelé directement dans le dépôt cloné, et non dans une copie
+# comme pour la sauvegarde PostgreSQL : un "git pull" suffit ainsi à déployer
+# une correction de la surveillance, sans réinstaller le cron.
+#
+# La sortie standard part dans /dev/null parce que le script journalise déjà
+# lui-même dans /var/log/auris/monitoring.log — la rediriger aussi ici
+# dupliquerait chaque ligne. Seules les erreurs de cron lui-même sont gardées.
+#
+# min  heure  jour  mois  jour_semaine  utilisateur  commande
+*/5    *      *     *     *             root         bash /opt/auris/infra/scripts/monitor-services.sh > /dev/null 2>> /var/log/auris/monitoring-cron.log
