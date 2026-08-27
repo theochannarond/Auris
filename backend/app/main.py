@@ -1,23 +1,21 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+import time
+import logging
+import os
 from app.core.database import check_db_connection
+from app.core.logging_config import setup_logging
 from app.api.v1.auth import router as auth_router
 from app.api.v1.meetings import router as meetings_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.transcriptions import router as transcriptions_router
 from app.api.v1.summaries import router as summaries_router
+from app.api.v1.metrics import router as metrics_router
 from app.services.storage_service import check_ovh_health
-import time
-import logging
-import os
-from fastapi import Request
-from app.core.logging_config import setup_logging
 
 # Configure les logs JSON dès le démarrage
 setup_logging(level=os.getenv("LOG_LEVEL", "INFO"))
-
 logger = logging.getLogger("auris.requests")
-
 
 
 app = FastAPI(
@@ -74,6 +72,7 @@ app.include_router(meetings_router)
 app.include_router(webhooks_router)
 app.include_router(transcriptions_router)
 app.include_router(summaries_router)
+app.include_router(metrics_router)
 
 
 @app.get("/health")
