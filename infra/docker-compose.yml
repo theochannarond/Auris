@@ -43,6 +43,7 @@ services:
       OVH_SECRET_KEY: ${OVH_SECRET_KEY}
       OVH_BUCKET_NAME: ${OVH_BUCKET_NAME}
       VEXA_API_KEY: ${VEXA_API_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       db:
         condition: service_healthy
