@@ -352,7 +352,17 @@ async def stop_video_meeting(
     seul dans la salle. C'est aussi ce départ qui déclenche "meeting.completed"
     côté Vexa, donc la récupération de l'audio et la transcription.
     """
-    meeting = get_owned_meeting(meeting_id, db, current_user)
+    user = db.query(User).filter(User.keycloak_id == current_user["id"]).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé en base")
+
+    meeting = db.query(Meeting).filter(
+        Meeting.id         == meeting_id,
+        Meeting.owner_id   == user.id,
+        Meeting.deleted_at == None
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Réunion non trouvée")
 
     if meeting.mode != "video" or not meeting.vexa_native_id:
         raise HTTPException(
