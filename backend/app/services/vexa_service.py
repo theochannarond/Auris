@@ -133,6 +133,36 @@ async def stop_bot(platform: str, native_meeting_id: str) -> dict:
         raise VexaError(f"Arrêt du bot impossible : {e}") from e
 
 
+async def get_bot_status(vexa_meeting_id: int) -> Optional[dict]:
+    """
+    Interroge Vexa sur l'état d'un bot en cours.
+
+    Indispensable parce que Vexa n'ENVOIE pas l'événement "meeting.started" :
+    ses journaux de livraison le marquent "suppressed", seul "meeting.completed"
+    part réellement. Sans cette interrogation, une réunion resterait affichée
+    "en attente que le bot rejoigne" alors que le bot est déjà entré.
+
+    Retourne le descriptif du bot, ou None s'il n'est plus dans la liste des
+    bots actifs (soit il n'a pas démarré, soit la réunion est terminée).
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{VEXA_API_URL}/bots/status",
+                headers=_headers(),
+                timeout=REQUEST_TIMEOUT_SEC,
+            )
+            response.raise_for_status()
+            payload = response.json()
+    except httpx.HTTPError as e:
+        raise VexaError(f"Etat des bots indisponible : {e}") from e
+
+    for bot in payload.get("running", []):
+        if bot.get("id") == vexa_meeting_id:
+            return bot
+    return None
+
+
 async def find_recording(vexa_meeting_id: int) -> Optional[dict]:
     """
     Retrouve l'enregistrement produit pour une réunion Vexa donnée.

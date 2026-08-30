@@ -13,6 +13,7 @@ from app.schemas.summary import SummaryResponse
 from app.services import vexa_service
 from app.services.storage_service import upload_audio_file_with_fallback, delete_audio_file
 from app.services.meeting_deletion_service import soft_delete_meeting
+from datetime import datetime
 from typing import List
 from uuid import UUID
 import uuid as uuid_lib
@@ -295,6 +296,93 @@ async def update_meeting_status(
     return meeting
 
 
+# Dernière interrogation de Vexa par réunion, pour ne pas l'appeler à chaque
+# sondage du navigateur (toutes les 3 s côté useMeetingStatus).
+_derniere_verif_bot: dict[UUID, float] = {}
+INTERVALLE_VERIF_BOT_SEC = 5.0
+
+
+async def _synchroniser_etat_bot(meeting: Meeting, db: Session) -> None:
+    """
+    Demande à Vexa si le bot est entré, et met la réunion à jour le cas échéant.
+
+    Vexa n'envoie PAS l'événement "meeting.started" — ses journaux de livraison
+    le marquent "suppressed", seul "meeting.completed" part réellement. Sans
+    cette interrogation, la page vidéo affichait « en attente que le bot
+    rejoigne » indéfiniment alors que le bot était déjà dans la réunion.
+
+    N'agit que sur une réunion vidéo encore en attente : dès qu'elle passe en
+    "recording", plus aucun appel n'est fait.
+    """
+    if meeting.status != "pending" or not meeting.vexa_meeting_id:
+        return
+
+    maintenant = time.monotonic()
+    if maintenant - _derniere_verif_bot.get(meeting.id, 0.0) < INTERVALLE_VERIF_BOT_SEC:
+        return
+    _derniere_verif_bot[meeting.id] = maintenant
+
+    try:
+        bot = await vexa_service.get_bot_status(meeting.vexa_meeting_id)
+    except vexa_service.VexaError:
+        # Vexa injoignable : on laisse le statut tel quel plutôt que de faire
+        # échouer le sondage du navigateur.
+        return
+
+    if bot and bot.get("status") in ("active", "recording"):
+        meeting.status = "recording"
+        meeting.started_at = meeting.started_at or datetime.utcnow()
+        db.commit()
+        db.refresh(meeting)
+        _derniere_verif_bot.pop(meeting.id, None)
+
+
+# ─── Vidéo — faire quitter la réunion au bot ───
+@router.post("/meetings/{meeting_id}/stop", response_model=MeetingResponse)
+async def stop_video_meeting(
+    meeting_id:   UUID,
+    db:           Session = Depends(get_db),
+    current_user: dict    = Depends(get_current_user)
+):
+    """
+    Retire le bot de la visioconférence.
+
+    Sans cette route, l'utilisateur n'avait aucun moyen d'arrêter un
+    enregistrement depuis l'interface : quitter le Meat soi-même laisse le bot
+    seul dans la salle. C'est aussi ce départ qui déclenche "meeting.completed"
+    côté Vexa, donc la récupération de l'audio et la transcription.
+    """
+    meeting = get_owned_meeting(meeting_id, db, current_user)
+
+    if meeting.mode != "video" or not meeting.vexa_native_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Cette réunion n'a pas de bot à arrêter"
+        )
+
+    if meeting.status in ("processing", "completed", "failed"):
+        # Déjà terminée : on ne renvoie pas d'erreur, l'utilisateur a peut-être
+        # cliqué deux fois ou le webhook est arrivé entre-temps.
+        return meeting
+
+    try:
+        await vexa_service.stop_bot(
+            platform          = meeting.vexa_platform or "google_meet",
+            native_meeting_id = meeting.vexa_native_id,
+        )
+    except vexa_service.VexaError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    # Le statut définitif viendra du webhook "meeting.completed", qui porte les
+    # horodatages réels et l'identifiant de l'enregistrement. On se contente ici
+    # de refléter la demande pour que l'interface réagisse tout de suite.
+    meeting.status   = "processing"
+    meeting.ended_at = meeting.ended_at or datetime.utcnow()
+    db.commit()
+    db.refresh(meeting)
+    return meeting
+
+
 @router.get("/meetings/{meeting_id}/status", response_model=MeetingStatusResponse)
 async def get_meeting_status(
     meeting_id:   UUID,
@@ -312,5 +400,9 @@ async def get_meeting_status(
     ).first()
     if not meeting:
         raise HTTPException(status_code=404, detail="Réunion non trouvée")
+
+    # Vexa n'émet pas "meeting.started" : c'est ici qu'on constate l'entrée du
+    # bot, au fil des sondages du navigateur.
+    await _synchroniser_etat_bot(meeting, db)
 
     return meeting
