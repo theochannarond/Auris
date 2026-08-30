@@ -12,8 +12,29 @@ export default function VideoModePage() {
   const [title, setTitle]             = useState("");
   const [meeting, setMeeting]         = useState<{id: string; status: string} | null>(null);
   const [loading, setLoading]         = useState(false);
+  const [stopping, setStopping]       = useState(false);
   const [error, setError]             = useState("");
   const { status }                    = useMeetingStatus(meeting?.id ?? null);
+
+  // Le bot ne quitte pas la réunion quand l'utilisateur la quitte : il reste
+  // seul dans la salle. Sans ce bouton, le seul moyen de l'arrêter était de le
+  // retirer à la main dans Google Meet — et c'est son départ qui déclenche la
+  // récupération de l'audio, donc la transcription.
+  const handleStop = async () => {
+    if (!meeting) return;
+    setStopping(true);
+    setError("");
+    try {
+      const response = await apiFetch(`/api/v1/meetings/${meeting.id}/stop`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error();
+    } catch {
+      setError("Impossible d'arrêter le bot. Réessayez.");
+    } finally {
+      setStopping(false);
+    }
+  };
 
   const handleCreateMeeting = async () => {
     if (!title || !meetingLink) {
@@ -70,7 +91,7 @@ export default function VideoModePage() {
           </Button>
         </div>
       ) : (
-        <div className="text-center">
+        <div className="text-center w-full flex flex-col items-center">
           {status === "pending" && (
             <div className="flex items-center gap-3 justify-center text-gray-500 mb-4">
               <Spinner size={18} />
@@ -82,12 +103,47 @@ export default function VideoModePage() {
               ✓ Le bot Auris a rejoint votre réunion
             </p>
           )}
+          {status === "processing" && (
+            <div className="flex items-center gap-3 justify-center text-gray-500 mb-4">
+              <Spinner size={18} />
+              <span>Réunion terminée — transcription en cours...</span>
+            </div>
+          )}
+          {status === "completed" && (
+            <p className="text-lg text-[#059669] mb-2 font-medium">
+              ✓ Compte rendu disponible dans vos réunions
+            </p>
+          )}
+          {status === "failed" && (
+            <p className="text-lg text-[#B91C1C] mb-2 font-medium">
+              ✗ La réunion n'a pas pu être traitée
+            </p>
+          )}
+
+          {/* Affiche le statut vivant, et non celui figé à la création */}
           <p className="text-gray-500 text-sm">
-            Statut : {meeting.status}
+            Statut : {status ?? meeting.status}
           </p>
-          <p className="text-gray-500 text-xs mt-2">
-            ID réunion : {meeting.id}
-          </p>
+
+          {(status === "pending" || status === "recording") && (
+            <div className="mt-6 w-full max-w-[320px]">
+              <Button
+                onClick={handleStop}
+                disabled={stopping}
+                loading={stopping}
+                fullWidth
+              >
+                {stopping ? "Arrêt en cours..." : "Quitter la réunion"}
+              </Button>
+              <p className="text-gray-500 text-xs mt-2">
+                Le bot quitte la visioconférence et le compte rendu est lancé.
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <p className="text-[#B91C1C] text-sm mt-4">{error}</p>
+          )}
         </div>
       )}
 
