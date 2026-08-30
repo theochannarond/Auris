@@ -32,6 +32,8 @@ from app.models.transcription import Transcription
 from app.services import vexa_service
 from app.services.storage_service import upload_audio_file_with_fallback
 from app.api.v1.transcriptions import run_transcription
+from app.api.v1.summaries import run_summary
+from app.models.summary import Summary
 
 logger = logging.getLogger(__name__)
 
@@ -322,3 +324,61 @@ async def ingest_vexa_recording(
         storage_key      = storage_key,
         mime_type        = audio_mime,
     )
+
+    await finaliser_reunion_video(meeting_id, transcription_id)
+
+
+async def finaliser_reunion_video(meeting_id: UUID, transcription_id: UUID) -> None:
+    """
+    Génère le compte rendu puis clôt la réunion.
+
+    En mode dictaphone c'est le navigateur qui enchaîne transcription, résumé
+    et passage en "completed" : l'utilisateur est devant son écran. En mode
+    vidéo il n'y a personne au moment où la réunion se termine — le backend
+    doit donc mener la chaîne à son terme, sans quoi la réunion resterait en
+    "processing" et aucun compte rendu ne serait jamais produit.
+    """
+    db = SessionLocal()
+    try:
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        transcription = db.query(Transcription).filter(
+            Transcription.id == transcription_id
+        ).first()
+
+        if not meeting or not transcription:
+            return
+
+        if transcription.status != "completed" or not transcription.raw_text:
+            meeting.status = "failed"
+            db.commit()
+            logger.warning(
+                "Reunion video %s : transcription %s inexploitable, pas de compte rendu",
+                meeting_id, transcription_id,
+            )
+            return
+
+        summary = Summary(
+            meeting_id       = meeting.id,
+            transcription_id = transcription.id,
+            content          = "",
+        )
+        db.add(summary)
+        db.commit()
+        db.refresh(summary)
+
+        summary_id = summary.id
+        texte      = transcription.raw_text
+    finally:
+        db.close()
+
+    await run_summary(summary_id=summary_id, transcription_text=texte)
+
+    db = SessionLocal()
+    try:
+        meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+        if meeting:
+            meeting.status = "completed"
+            db.commit()
+            logger.info("Reunion video %s terminee - compte rendu %s", meeting_id, summary_id)
+    finally:
+        db.close()
