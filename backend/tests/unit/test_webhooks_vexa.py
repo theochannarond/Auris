@@ -1,69 +1,259 @@
-import pytest
-from datetime import datetime
-from app.models.meeting import Meeting
+"""
+Tests du webhook Vexa.
+
+La version précédente de ce fichier ne testait rien : elle modifiait le modèle
+à la main (meeting.status = "recording") puis vérifiait que la modification
+avait eu lieu, sans jamais appeler l'endpoint. C'est la raison pour laquelle un
+module entièrement inopérant — mauvais noms d'événements, mauvais type
+d'identifiant — a pu rester en place sans qu'aucun test n'échoue.
+
+Les charges utiles ci-dessous reprennent la forme réelle observée le
+30 août 2026 sur le compte de production (event_type, meeting_id entier).
+"""
+
 import uuid
+import pytest
+from unittest.mock import patch
 
-def test_bot_joined_updates_status_to_recording(db, test_meeting):
-    """bot.joined → status passe à recording et started_at est renseigné"""
-    assert test_meeting.status == "pending"
+from app.models.meeting import Meeting
+from app.core.database import settings
 
-    test_meeting.status = "recording"
-    test_meeting.started_at = datetime.utcnow()
+
+SECRET = "secret-de-test-vexa"
+VEXA_MEETING_ID = 27246
+
+WEBHOOK_URL = "/api/v1/webhooks/vexa"
+
+
+@pytest.fixture
+def vexa_meeting(db, test_user):
+    """Réunion vidéo reliée à une réunion Vexa, comme après spawn_bot()."""
+    meeting = Meeting(
+        id=uuid.uuid4(),
+        owner_id=test_user.id,
+        title="Réunion vidéo test",
+        mode="video",
+        status="pending",
+        meeting_link="https://meet.google.com/ora-scow-epu",
+        vexa_meeting_id=VEXA_MEETING_ID,
+        vexa_platform="google_meet",
+        vexa_native_id="ora-scow-epu",
+    )
+    db.add(meeting)
     db.commit()
-    db.refresh(test_meeting)
-
-    assert test_meeting.status == "recording"
-    assert test_meeting.started_at is not None
+    db.refresh(meeting)
+    return meeting
 
 
-def test_bot_left_updates_status_to_processing(db, test_meeting):
-    """bot.left → status passe à processing et ended_at est renseigné"""
-    test_meeting.status = "recording"
+class _SessionSansFermeture:
+    """
+    Enveloppe la session de test pour neutraliser close().
+
+    Le webhook ouvre et referme sa propre session ; sur la session partagée du
+    test, cette fermeture détacherait les objets et rendrait tout db.refresh()
+    impossible côté assertions.
+    """
+
+    def __init__(self, session):
+        self._session = session
+
+    def __getattr__(self, name):
+        return getattr(self._session, name)
+
+    def close(self):
+        pass
+
+
+@pytest.fixture
+def webhook_client(client, db, monkeypatch):
+    """
+    Le webhook ouvre sa propre session (SessionLocal) : la surcharge de get_db
+    du client de test ne s'y applique pas, il faut la rediriger explicitement.
+    """
+    monkeypatch.setattr(settings, "VEXA_WEBHOOK_SECRET", SECRET)
+    monkeypatch.setattr(
+        "app.api.v1.webhooks.SessionLocal", lambda: _SessionSansFermeture(db)
+    )
+    return client
+
+
+def _headers(secret=SECRET):
+    return {"X-Vexa-Secret": secret}
+
+
+# ─── Authentification ───
+
+def test_secret_absent_rejete(webhook_client):
+    res = webhook_client.post(
+        WEBHOOK_URL,
+        json={"event_type": "meeting.started", "meeting_id": VEXA_MEETING_ID},
+    )
+    assert res.status_code == 401
+
+
+def test_secret_invalide_rejete(webhook_client):
+    res = webhook_client.post(
+        WEBHOOK_URL,
+        json={"event_type": "meeting.started", "meeting_id": VEXA_MEETING_ID},
+        headers=_headers("mauvais-secret"),
+    )
+    assert res.status_code == 401
+
+
+def test_secret_accepte_dans_un_autre_en_tete(webhook_client, vexa_meeting, db):
+    """Vexa ne documente pas le nom de l'en-tête : plusieurs sont acceptés."""
+    res = webhook_client.post(
+        WEBHOOK_URL,
+        json={"event_type": "meeting.started", "meeting_id": VEXA_MEETING_ID},
+        headers={"X-Webhook-Secret": SECRET},
+    )
+    assert res.status_code == 200
+
+
+# ─── Transitions d'état ───
+
+def test_meeting_started_passe_en_recording(webhook_client, vexa_meeting, db):
+    res = webhook_client.post(
+        WEBHOOK_URL,
+        json={"event_type": "meeting.started", "meeting_id": VEXA_MEETING_ID},
+        headers=_headers(),
+    )
+    assert res.status_code == 200
+
+    db.refresh(vexa_meeting)
+    assert vexa_meeting.status == "recording"
+    assert vexa_meeting.started_at is not None
+
+
+def test_meeting_completed_passe_en_processing_et_declenche_ingestion(
+    webhook_client, vexa_meeting, db
+):
+    vexa_meeting.status = "recording"
     db.commit()
 
-    test_meeting.status = "processing"
-    test_meeting.ended_at = datetime.utcnow()
+    with patch("app.api.v1.webhooks.ingest_vexa_recording") as ingest:
+        res = webhook_client.post(
+            WEBHOOK_URL,
+            json={"event_type": "meeting.completed", "meeting_id": VEXA_MEETING_ID},
+            headers=_headers(),
+        )
+
+    assert res.status_code == 200
+    db.refresh(vexa_meeting)
+    assert vexa_meeting.status == "processing"
+    assert vexa_meeting.ended_at is not None
+    # C'est le chaînon qui manquait : sans lui la réunion restait en processing
+    ingest.assert_called_once()
+
+
+def test_status_change_actif_vaut_demarrage(webhook_client, vexa_meeting, db):
+    """Vexa émet aussi des meeting.status_change portant le statut du bot."""
+    res = webhook_client.post(
+        WEBHOOK_URL,
+        json={
+            "event_type": "meeting.status_change",
+            "meeting_id": VEXA_MEETING_ID,
+            "status": "active",
+        },
+        headers=_headers(),
+    )
+    assert res.status_code == 200
+
+    db.refresh(vexa_meeting)
+    assert vexa_meeting.status == "recording"
+
+
+def test_echec_du_bot_passe_en_failed(webhook_client, vexa_meeting, db):
+    res = webhook_client.post(
+        WEBHOOK_URL,
+        json={
+            "event_type": "meeting.status_change",
+            "meeting_id": VEXA_MEETING_ID,
+            "status": "failed",
+        },
+        headers=_headers(),
+    )
+    assert res.status_code == 200
+
+    db.refresh(vexa_meeting)
+    assert vexa_meeting.status == "failed"
+
+
+# ─── Idempotence et robustesse ───
+
+def test_meeting_started_deux_fois_ne_change_pas_started_at(
+    webhook_client, vexa_meeting, db
+):
+    payload = {"event_type": "meeting.started", "meeting_id": VEXA_MEETING_ID}
+    webhook_client.post(WEBHOOK_URL, json=payload, headers=_headers())
+    db.refresh(vexa_meeting)
+    premier = vexa_meeting.started_at
+
+    webhook_client.post(WEBHOOK_URL, json=payload, headers=_headers())
+    db.refresh(vexa_meeting)
+    assert vexa_meeting.started_at == premier
+
+
+def test_statut_ne_recule_jamais(webhook_client, vexa_meeting, db):
+    """Un meeting.started arrivant après la fin ne doit pas rouvrir la réunion."""
+    vexa_meeting.status = "completed"
     db.commit()
-    db.refresh(test_meeting)
 
-    assert test_meeting.status == "processing"
-    assert test_meeting.ended_at is not None
-
-
-def test_bot_failed_updates_status_to_failed(db, test_meeting):
-    """bot.failed → status passe à failed"""
-    test_meeting.status = "failed"
-    db.commit()
-    db.refresh(test_meeting)
-
-    assert test_meeting.status == "failed"
+    webhook_client.post(
+        WEBHOOK_URL,
+        json={"event_type": "meeting.started", "meeting_id": VEXA_MEETING_ID},
+        headers=_headers(),
+    )
+    db.refresh(vexa_meeting)
+    assert vexa_meeting.status == "completed"
 
 
-def test_idempotence_bot_joined_twice(db, test_meeting):
-    """Recevoir bot.joined deux fois ne doit pas écraser started_at"""
-    first_time = datetime(2026, 7, 30, 10, 0, 0)
-    test_meeting.status = "recording"
-    test_meeting.started_at = first_time
-    db.commit()
-
-    # Deuxième événement — statut déjà recording, on ne touche pas
-    if test_meeting.status == "pending":
-        test_meeting.status = "recording"
-        test_meeting.started_at = datetime.utcnow()
-        db.commit()
-
-    db.refresh(test_meeting)
-    assert test_meeting.started_at == first_time
+def test_reunion_inconnue_acquittee_sans_erreur(webhook_client, db):
+    """Le compte Vexa peut servir hors Auris : on acquitte pour éviter les réémissions."""
+    res = webhook_client.post(
+        WEBHOOK_URL,
+        json={"event_type": "meeting.completed", "meeting_id": 999999},
+        headers=_headers(),
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "ignored"
 
 
-def test_deleted_meeting_ignored(db, test_meeting):
-    """Une réunion soft-deletée ne doit pas être mise à jour"""
-    test_meeting.deleted_at = datetime.utcnow()
+def test_reunion_supprimee_ignoree(webhook_client, vexa_meeting, db):
+    from datetime import datetime
+    vexa_meeting.deleted_at = datetime.utcnow()
     db.commit()
 
-    meeting = db.query(Meeting).filter(
-        Meeting.id == test_meeting.id,
-        Meeting.deleted_at == None
-    ).first()
+    res = webhook_client.post(
+        WEBHOOK_URL,
+        json={"event_type": "meeting.started", "meeting_id": VEXA_MEETING_ID},
+        headers=_headers(),
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "ignored"
 
-    assert meeting is None
+
+def test_charge_utile_sans_identifiant_ignoree(webhook_client):
+    res = webhook_client.post(
+        WEBHOOK_URL,
+        json={"event_type": "meeting.started"},
+        headers=_headers(),
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "ignored"
+
+
+def test_identifiant_imbrique_dans_data(webhook_client, vexa_meeting, db):
+    """Certaines charges utiles Vexa imbriquent les champs sous "data"."""
+    res = webhook_client.post(
+        WEBHOOK_URL,
+        json={
+            "event_type": "meeting.status_change",
+            "data": {"meeting_id": VEXA_MEETING_ID, "status": "active"},
+        },
+        headers=_headers(),
+    )
+    assert res.status_code == 200
+
+    db.refresh(vexa_meeting)
+    assert vexa_meeting.status == "recording"
