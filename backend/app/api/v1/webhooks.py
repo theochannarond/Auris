@@ -213,8 +213,12 @@ async def vexa_webhook(request: Request, background_tasks: BackgroundTasks):
                 db.commit()
 
         # ─── La réunion est terminée, l'audio est disponible ───
+        # "processing" fait partie des états acceptés : la route /stop l'a déjà
+        # positionné pour que l'interface réagisse dès le clic. L'exclure
+        # revenait à sauter tout ce bloc — donc à ne jamais récupérer l'audio
+        # dès lors que l'utilisateur arrêtait le bot depuis l'application.
         elif event == "meeting.completed" or statut in COMPLETED_STATUSES:
-            if meeting.status in ("pending", "recording"):
+            if meeting.status in ("pending", "recording", "processing"):
                 debut = _horodatage(reunion.get("start_time"))
                 fin   = _horodatage(reunion.get("end_time"))
 
@@ -227,15 +231,28 @@ async def vexa_webhook(request: Request, background_tasks: BackgroundTasks):
                     meeting.duration_sec = max(int((fin - debut).total_seconds()), 0)
                 db.commit()
 
-                # Le téléchargement peut prendre plusieurs minutes : il ne doit
-                # pas retarder la réponse, sans quoi Vexa considérerait la
-                # livraison en échec et réémettrait l'événement.
-                background_tasks.add_task(
-                    ingest_vexa_recording,
-                    meeting_id      = meeting.id,
-                    vexa_meeting_id = vexa_meeting_id,
-                    recording_id    = _identifiant_enregistrement(payload),
-                )
+                # Idempotence : Vexa peut réémettre un événement, et la route
+                # /stop a pu passer la réunion en "processing" juste avant. On
+                # n'ingère l'audio qu'une seule fois par réunion.
+                deja_traitee = db.query(Transcription).filter(
+                    Transcription.meeting_id == meeting.id,
+                    Transcription.deleted_at == None,
+                ).first() is not None
+
+                if deja_traitee:
+                    logger.info(
+                        "Reunion %s deja transcrite, ingestion ignoree", meeting.id
+                    )
+                else:
+                    # Le téléchargement peut prendre plusieurs minutes : il ne
+                    # doit pas retarder la réponse, sans quoi Vexa considérerait
+                    # la livraison en échec et réémettrait l'événement.
+                    background_tasks.add_task(
+                        ingest_vexa_recording,
+                        meeting_id      = meeting.id,
+                        vexa_meeting_id = vexa_meeting_id,
+                        recording_id    = _identifiant_enregistrement(payload),
+                    )
 
         # ─── Échec du bot ───
         elif event in ("meeting.failed", "bot.failed") or statut in ("failed", "error"):

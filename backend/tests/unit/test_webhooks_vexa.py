@@ -373,3 +373,49 @@ def test_sans_enregistrement_dans_la_charge_utile_on_retombe_sur_la_recherche(
         webhook_client.post(WEBHOOK_URL, json=charge, headers=_headers())
 
     assert ingest.call_args.kwargs["recording_id"] is None
+
+
+# ─── Enchaînement avec le bouton « Quitter la réunion » ───
+#
+# La route POST /meetings/{id}/stop passe la réunion en "processing" pour que
+# l'interface réagisse dès le clic. Le webhook meeting.completed qui suit doit
+# donc accepter cet état : le refuser revenait à ne jamais récupérer l'audio
+# dès lors que l'utilisateur arrêtait le bot depuis l'application — la page
+# restait sur « transcription en cours » indéfiniment.
+
+def test_completed_apres_arret_manuel_declenche_bien_l_ingestion(
+    webhook_client, vexa_meeting, db
+):
+    vexa_meeting.status = "processing"   # état posé par la route /stop
+    db.commit()
+
+    with patch("app.api.v1.webhooks.ingest_vexa_recording") as ingest:
+        res = webhook_client.post(
+            WEBHOOK_URL, json=_charge_utile_reelle(), headers=_headers()
+        )
+
+    assert res.status_code == 200
+    ingest.assert_called_once()
+
+
+def test_reemission_du_meme_evenement_n_ingere_pas_deux_fois(
+    webhook_client, vexa_meeting, db, test_audio_file
+):
+    """Une transcription existante vaut « déjà traitée »."""
+    from app.models.transcription import Transcription
+
+    db.add(Transcription(
+        id=uuid.uuid4(),
+        meeting_id=vexa_meeting.id,
+        audio_file_id=test_audio_file.id,
+        status="completed",
+    ))
+    vexa_meeting.status = "processing"
+    db.commit()
+
+    with patch("app.api.v1.webhooks.ingest_vexa_recording") as ingest:
+        webhook_client.post(
+            WEBHOOK_URL, json=_charge_utile_reelle(), headers=_headers()
+        )
+
+    ingest.assert_not_called()
