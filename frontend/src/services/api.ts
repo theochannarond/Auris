@@ -1,4 +1,4 @@
-import { getValidAccessToken, refreshAccessToken, endSession } from "./auth";
+import { getAccessToken, getValidAccessToken, refreshAccessToken, endSession } from "./auth";
 
 /**
  * Point de passage unique de tous les appels authentifiés à l'API.
@@ -29,7 +29,19 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
     });
   };
 
-  const response = await send(await getValidAccessToken());
+  const token = await getValidAccessToken();
+
+  // Un jeton existait mais n'a pas pu être renouvelé : la session est perdue.
+  // Sans ce cas, la requête partait SANS en-tête Authorization, le serveur
+  // répondait 403 — et non 401 — si bien que le renouvellement ci-dessous
+  // n'était jamais tenté et la session jamais fermée. L'utilisateur restait
+  // devant un écran qui échouait en boucle, sans jamais revenir à la connexion.
+  if (!token && getAccessToken()) {
+    endSession();
+    return send(null);
+  }
+
+  const response = await send(token);
 
   // Pas de jeton du tout : appel public, ou utilisateur non connecté. Rien à
   // renouveler, on rend la réponse telle quelle.
