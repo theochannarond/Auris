@@ -22,8 +22,11 @@ export function useMeetingStatus(meetingId: string | null, pollingInterval = 300
         const data: MeetingStatus = await res.json();
         setStatus(data.status);
 
-        // Arrêter le polling si statut final
-        if (["recording", "processing", "completed", "failed"].includes(data.status)) {
+        // Arrêter le polling seulement sur un statut VRAIMENT final.
+        // "recording" et "processing" figuraient ici : le suivi s'arrêtait dès
+        // que le bot entrait dans la réunion, si bien que la page restait
+        // bloquée sur « le bot a rejoint » et n'affichait jamais la suite.
+        if (["completed", "failed"].includes(data.status)) {
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
