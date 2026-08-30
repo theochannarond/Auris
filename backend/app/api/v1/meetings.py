@@ -244,11 +244,24 @@ async def create_video_meeting(
     db.commit()
     db.refresh(meeting)
 
+    # Le retour de Vexa porte l'identifiant numerique qu'il renverra dans ses
+    # webhooks : sans le stocker, aucun evenement entrant ne peut etre rattache
+    # a cette reunion. L'ancienne version jetait cette reponse.
     if meeting_data.meeting_link:
-        await vexa_service.spawn_bot(
-            meeting_id   = str(meeting.id),
-            meeting_link = meeting_data.meeting_link
-        )
+        try:
+            bot = await vexa_service.spawn_bot(meeting_data.meeting_link)
+            meeting.vexa_meeting_id = bot.get("id")
+            meeting.vexa_platform   = bot.get("platform")
+            meeting.vexa_native_id  = bot.get("native_meeting_id")
+            db.commit()
+            db.refresh(meeting)
+        except vexa_service.VexaError as e:
+            # Le bot n'est pas parti : la reunion ne produira jamais rien. On le
+            # dit tout de suite plutot que de laisser l'utilisateur attendre un
+            # bot fantome, comme le faisait la version precedente.
+            meeting.status = "failed"
+            db.commit()
+            raise HTTPException(status_code=502, detail=str(e))
 
     return meeting
 
