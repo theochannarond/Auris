@@ -38,8 +38,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
 # Vexa ne documente pas le nom de l'en-tête portant le secret. On accepte les
-# candidats plausibles plutôt que d'en imposer un : la journalisation ci-dessous
-# liste les en-têtes réellement reçus, ce qui permettra de resserrer ensuite.
+# candidats plausibles plutôt que d'en imposer un seul au jugé. Vérifié en
+# production le 30 août 2026 : un de ces noms correspond bien (le webhook est
+# accepté), la liste pourra être resserrée quand on saura lequel.
 SECRET_HEADERS = (
     "x-vexa-secret",
     "x-webhook-secret",
@@ -49,8 +50,34 @@ SECRET_HEADERS = (
     "authorization",
 )
 
+# Mêmes motifs que app/core/logging_config.py : un message les contenant est
+# effacé par le formateur, journalisation de diagnostic comprise.
+SECRET_PATTERNS = (
+    "password", "token", "secret", "api_key",
+    "access_key", "authorization", "credential",
+)
+
 # Statuts Vexa signifiant « la réunion est finie, l'audio est disponible »
 COMPLETED_STATUSES = ("completed", "finished", "stopped", "ended")
+
+
+def _pour_journal(valeur, _profondeur=0):
+    """
+    Retire les clés sensibles avant journalisation.
+
+    Sans ce nettoyage, le formateur JSON détecte un mot interdit et remplace la
+    ligne ENTIÈRE par "[REDACTED]" — ce qui a rendu le premier diagnostic de ce
+    webhook illisible alors même que la charge utile ne posait aucun problème.
+    """
+    if isinstance(valeur, dict):
+        return {
+            k: _pour_journal(v, _profondeur + 1)
+            for k, v in valeur.items()
+            if not any(motif in k.lower() for motif in SECRET_PATTERNS)
+        }
+    if isinstance(valeur, list):
+        return [_pour_journal(v, _profondeur + 1) for v in valeur]
+    return valeur
 
 
 def _extract_secret(headers) -> Optional[str]:
@@ -86,10 +113,10 @@ async def vexa_webhook(request: Request, background_tasks: BackgroundTasks):
 
     # Journalisé à chaque appel : c'est ce qui permet de constater la forme
     # réelle des messages au lieu de la deviner — l'erreur d'origine du module.
-    logger.info(
-        "Webhook Vexa - event=%s status=%s meeting_id=%s en-tetes=%s",
-        event, status, vexa_meeting_id, sorted(request.headers.keys()),
-    )
+    # Le contenu passe par _pour_journal() car le formateur JSON efface tout
+    # message contenant "secret", "token" ou "authorization" (logging_config.py),
+    # et Vexa renvoie justement un champ webhook_secret dans certaines charges.
+    logger.info("Webhook Vexa - contenu=%s", _pour_journal(payload))
 
     if not _secret_is_valid(request.headers):
         logger.warning("Webhook Vexa rejete : secret absent ou invalide")
