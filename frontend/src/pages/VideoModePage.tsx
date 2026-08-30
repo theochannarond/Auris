@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMeetingStatus } from "../hooks/useMeetingStatus";
 import BotStatusNotification from "../components/ui/BotStatusNotification";
 import Button from "../components/ui/Button";
@@ -61,6 +62,16 @@ export default function VideoModePage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen font-sans px-6 max-w-[600px] mx-auto">
+      {/* Même repère que les pages dictaphone et détail de réunion : sans lui,
+          le mode vidéo était un cul-de-sac, on ne pouvait en sortir qu'en
+          modifiant l'URL à la main. */}
+      <Link
+        to="/dashboard"
+        className="text-[#2C5F8A] text-sm no-underline self-start mb-8"
+      >
+        ← Retour au dashboard
+      </Link>
+
       <h1 className="text-3xl mb-2">Auris</h1>
       <h2 className="text-lg text-gray-500 mb-8 text-center">
         Mode réunion vidéo
