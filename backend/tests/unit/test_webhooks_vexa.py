@@ -257,3 +257,119 @@ def test_identifiant_imbrique_dans_data(webhook_client, vexa_meeting, db):
 
     db.refresh(vexa_meeting)
     assert vexa_meeting.status == "recording"
+
+
+# ─── Charge utile réelle ───
+#
+# Reproduite depuis un événement capté en production le 30 août 2026. C'est
+# elle qui compte : les tests plus haut valident la tolérance aux formes
+# plates, celui-ci valide la structure que Vexa envoie vraiment.
+
+def _charge_utile_reelle(vexa_id=VEXA_MEETING_ID, recording_id=320588629711):
+    return {
+        "event_id": "evt_1b97f7cf8bcb11a0981591b109c61acd",
+        "event_type": "meeting.completed",
+        "api_version": "2026-03-01",
+        "created_at": "2026-08-30T13:24:38.832955Z",
+        "data": {
+            "meeting": {
+                "id": vexa_id,
+                "user_id": 3089,
+                "platform": "google_meet",
+                "native_meeting_id": "bug-wriq-yfn",
+                "status": "completed",
+                "completion_reason": "stopped",
+                "start_time": "2026-08-30T13:22:56.750914Z",
+                "end_time": "2026-08-30T13:24:38.667351Z",
+                "data": {
+                    "recordings": [
+                        {
+                            "id": recording_id,
+                            "source": "bot",
+                            "status": "completed",
+                            "meeting_id": vexa_id,
+                            "media_files": [
+                                {"id": 330255740132, "type": "audio", "format": "webm"}
+                            ],
+                            "playback_url": {
+                                "audio": f"/recordings/{recording_id}/master?type=audio",
+                                "video": None,
+                            },
+                        }
+                    ],
+                    "recording_enabled": True,
+                    "segments_captured": 6,
+                },
+            }
+        },
+    }
+
+
+def test_charge_utile_reelle_identifie_la_reunion(webhook_client, vexa_meeting, db):
+    """
+    L'identifiant est sous data.meeting.id, pas à la racine.
+
+    C'est précisément ce que la première version ne savait pas lire : elle
+    répondait 200 avec "ignored" et la réunion restait bloquée.
+    """
+    with patch("app.api.v1.webhooks.ingest_vexa_recording"):
+        res = webhook_client.post(
+            WEBHOOK_URL, json=_charge_utile_reelle(), headers=_headers()
+        )
+
+    assert res.status_code == 200
+    assert res.json()["status"] == "ok"
+
+    db.refresh(vexa_meeting)
+    assert vexa_meeting.status == "processing"
+
+
+def test_charge_utile_reelle_transmet_l_identifiant_d_enregistrement(
+    webhook_client, vexa_meeting, db
+):
+    """L'événement porte déjà le recording_id : inutile d'interroger /recordings."""
+    with patch("app.api.v1.webhooks.ingest_vexa_recording") as ingest:
+        webhook_client.post(
+            WEBHOOK_URL, json=_charge_utile_reelle(), headers=_headers()
+        )
+
+    ingest.assert_called_once()
+    assert ingest.call_args.kwargs["recording_id"] == 320588629711
+    assert ingest.call_args.kwargs["vexa_meeting_id"] == VEXA_MEETING_ID
+
+
+def test_charge_utile_reelle_renseigne_les_horodatages_et_la_duree(
+    webhook_client, vexa_meeting, db
+):
+    """start_time / end_time viennent de Vexa ; duration_sec s'en déduit."""
+    with patch("app.api.v1.webhooks.ingest_vexa_recording"):
+        webhook_client.post(
+            WEBHOOK_URL, json=_charge_utile_reelle(), headers=_headers()
+        )
+
+    db.refresh(vexa_meeting)
+    assert vexa_meeting.started_at is not None
+    assert vexa_meeting.ended_at is not None
+    # 13:22:56.75 → 13:24:38.66, soit 101 secondes
+    assert vexa_meeting.duration_sec == 101
+
+
+def test_charge_utile_reelle_d_une_autre_reunion_ignoree(webhook_client, db):
+    res = webhook_client.post(
+        WEBHOOK_URL, json=_charge_utile_reelle(vexa_id=999999), headers=_headers()
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "ignored"
+
+
+def test_sans_enregistrement_dans_la_charge_utile_on_retombe_sur_la_recherche(
+    webhook_client, vexa_meeting, db
+):
+    """Si l'événement ne porte pas d'enregistrement, recording_id est None."""
+    charge = _charge_utile_reelle()
+    charge["data"]["meeting"]["data"]["recordings"] = []
+
+    with patch("app.api.v1.webhooks.ingest_vexa_recording") as ingest:
+        webhook_client.post(WEBHOOK_URL, json=charge, headers=_headers())
+
+    assert ingest.call_args.kwargs["recording_id"] is None

@@ -60,6 +60,9 @@ SECRET_PATTERNS = (
 # Statuts Vexa signifiant « la réunion est finie, l'audio est disponible »
 COMPLETED_STATUSES = ("completed", "finished", "stopped", "ended")
 
+# Statuts Vexa signifiant « le bot est en place et capte »
+ACTIVE_STATUSES = ("active", "recording")
+
 
 def _pour_journal(valeur, _profondeur=0):
     """
@@ -78,6 +81,69 @@ def _pour_journal(valeur, _profondeur=0):
     if isinstance(valeur, list):
         return [_pour_journal(v, _profondeur + 1) for v in valeur]
     return valeur
+
+
+def _reunion_vexa(payload: dict) -> dict:
+    """
+    Renvoie le bloc décrivant la réunion.
+
+    Forme réelle relevée en production le 30 août 2026 :
+        {"event_type": "meeting.completed",
+         "data": {"meeting": {"id": 27251, "status": "completed", ...}}}
+
+    Rien n'était donc à la racine, ce que supposait la version précédente. Les
+    variantes plus plates restent tolérées : Vexa versionne sa charge utile
+    (champ api_version) et cette structure peut évoluer.
+    """
+    data = payload.get("data") or {}
+    return data.get("meeting") or data or payload
+
+
+def _identifiant_reunion(payload: dict) -> Optional[int]:
+    reunion = _reunion_vexa(payload)
+    brut = reunion.get("id") or reunion.get("meeting_id") or payload.get("meeting_id")
+    try:
+        return int(brut) if brut is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _statut_reunion(payload: dict) -> str:
+    return _reunion_vexa(payload).get("status") or payload.get("status") or ""
+
+
+def _identifiant_enregistrement(payload: dict) -> Optional[int]:
+    """
+    Extrait l'identifiant d'enregistrement porté par l'événement.
+
+    Vexa le fournit directement dans "meeting.completed". S'en servir évite un
+    appel de plus ET la course à la publication : interroger /recordings juste
+    après la fin d'une réunion peut ne rien retourner.
+    """
+    interne = _reunion_vexa(payload).get("data") or {}
+    enregistrements = interne.get("recordings") or []
+    if not isinstance(enregistrements, list):
+        return None
+    complets = [
+        e for e in enregistrements
+        if isinstance(e, dict) and e.get("id") and e.get("status") == "completed"
+    ]
+    if complets:
+        return complets[0]["id"]
+    for e in enregistrements:
+        if isinstance(e, dict) and e.get("id"):
+            return e["id"]
+    return None
+
+
+def _horodatage(valeur) -> Optional[datetime]:
+    """Convertit un horodatage ISO Vexa ("...Z") en datetime naïf UTC."""
+    if not valeur:
+        return None
+    try:
+        return datetime.fromisoformat(str(valeur).replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None
 
 
 def _extract_secret(headers) -> Optional[str]:
@@ -101,22 +167,20 @@ def _secret_is_valid(headers) -> bool:
 @router.post("/vexa", status_code=200)
 async def vexa_webhook(request: Request, background_tasks: BackgroundTasks):
     payload = await request.json()
-    data    = payload.get("data") or {}
 
-    event  = payload.get("event_type") or payload.get("event") or ""
-    status = payload.get("status") or data.get("status") or ""
-    vexa_meeting_id = (
-        payload.get("meeting_id")
-        or data.get("meeting_id")
-        or payload.get("id")
-    )
+    event           = payload.get("event_type") or payload.get("event") or ""
+    statut          = _statut_reunion(payload)
+    vexa_meeting_id = _identifiant_reunion(payload)
 
     # Journalisé à chaque appel : c'est ce qui permet de constater la forme
     # réelle des messages au lieu de la deviner — l'erreur d'origine du module.
     # Le contenu passe par _pour_journal() car le formateur JSON efface tout
     # message contenant "secret", "token" ou "authorization" (logging_config.py),
     # et Vexa renvoie justement un champ webhook_secret dans certaines charges.
-    logger.info("Webhook Vexa - contenu=%s", _pour_journal(payload))
+    logger.info(
+        "Webhook Vexa - event=%s statut=%s reunion=%s contenu=%s",
+        event, statut, vexa_meeting_id, _pour_journal(payload),
+    )
 
     if not _secret_is_valid(request.headers):
         logger.warning("Webhook Vexa rejete : secret absent ou invalide")
@@ -128,7 +192,7 @@ async def vexa_webhook(request: Request, background_tasks: BackgroundTasks):
     db: Session = SessionLocal()
     try:
         meeting = db.query(Meeting).filter(
-            Meeting.vexa_meeting_id == int(vexa_meeting_id),
+            Meeting.vexa_meeting_id == vexa_meeting_id,
             Meeting.deleted_at == None,
         ).first()
 
@@ -137,30 +201,42 @@ async def vexa_webhook(request: Request, background_tasks: BackgroundTasks):
             # On acquitte pour éviter des réémissions inutiles.
             return {"status": "ignored", "reason": "meeting not found"}
 
+        reunion = _reunion_vexa(payload)
+
         # ─── Le bot est entré dans la réunion ───
-        if event == "meeting.started" or status == "active":
+        if event == "meeting.started" or statut in ACTIVE_STATUSES:
             if meeting.status == "pending":
                 meeting.status = "recording"
-                meeting.started_at = datetime.utcnow()
+                meeting.started_at = _horodatage(reunion.get("start_time")) or datetime.utcnow()
                 db.commit()
 
         # ─── La réunion est terminée, l'audio est disponible ───
-        elif event == "meeting.completed" or status in COMPLETED_STATUSES:
+        elif event == "meeting.completed" or statut in COMPLETED_STATUSES:
             if meeting.status in ("pending", "recording"):
-                meeting.status = "processing"
-                meeting.ended_at = datetime.utcnow()
+                debut = _horodatage(reunion.get("start_time"))
+                fin   = _horodatage(reunion.get("end_time"))
+
+                meeting.status     = "processing"
+                meeting.started_at = meeting.started_at or debut
+                meeting.ended_at   = fin or datetime.utcnow()
+                # Vexa laisse souvent duration_seconds à null : on la déduit des
+                # bornes réelles plutôt que de laisser la colonne vide.
+                if debut and fin:
+                    meeting.duration_sec = max(int((fin - debut).total_seconds()), 0)
                 db.commit()
+
                 # Le téléchargement peut prendre plusieurs minutes : il ne doit
                 # pas retarder la réponse, sans quoi Vexa considérerait la
                 # livraison en échec et réémettrait l'événement.
                 background_tasks.add_task(
                     ingest_vexa_recording,
                     meeting_id      = meeting.id,
-                    vexa_meeting_id = int(vexa_meeting_id),
+                    vexa_meeting_id = vexa_meeting_id,
+                    recording_id    = _identifiant_enregistrement(payload),
                 )
 
         # ─── Échec du bot ───
-        elif event == "meeting.failed" or status in ("failed", "error"):
+        elif event in ("meeting.failed", "bot.failed") or statut in ("failed", "error"):
             if meeting.status in ("pending", "recording"):
                 meeting.status = "failed"
                 db.commit()
@@ -170,7 +246,11 @@ async def vexa_webhook(request: Request, background_tasks: BackgroundTasks):
         db.close()
 
 
-async def ingest_vexa_recording(meeting_id: UUID, vexa_meeting_id: int) -> None:
+async def ingest_vexa_recording(
+    meeting_id: UUID,
+    vexa_meeting_id: int,
+    recording_id: Optional[int] = None,
+) -> None:
     """
     Tâche de fond : récupère l'audio capté par le bot, le dépose sur OVH, crée
     la ligne audio_files puis lance la transcription.
@@ -185,12 +265,18 @@ async def ingest_vexa_recording(meeting_id: UUID, vexa_meeting_id: int) -> None:
             return
 
         try:
-            recording = await vexa_service.find_recording(vexa_meeting_id)
-            if not recording:
-                raise vexa_service.VexaError(
-                    f"Aucun enregistrement publie par Vexa pour la reunion {vexa_meeting_id}"
-                )
-            content, mime_type = await vexa_service.download_audio(recording["id"])
+            # recording_id vient de la charge utile du webhook quand elle le
+            # porte ; on ne retombe sur /recordings que s'il manque, car cette
+            # liste peut ne rien contenir juste apres la fin d'une reunion.
+            if recording_id is None:
+                enregistrement = await vexa_service.find_recording(vexa_meeting_id)
+                if not enregistrement:
+                    raise vexa_service.VexaError(
+                        f"Aucun enregistrement publie par Vexa pour la reunion {vexa_meeting_id}"
+                    )
+                recording_id = enregistrement["id"]
+
+            content, mime_type = await vexa_service.download_audio(recording_id)
         except vexa_service.VexaError as e:
             logger.error("Recuperation audio Vexa impossible : %s", e)
             meeting.status = "failed"
@@ -209,10 +295,6 @@ async def ingest_vexa_recording(meeting_id: UUID, vexa_meeting_id: int) -> None:
         db.add(audio_file)
         db.flush()   # attribue audio_file.id avant de le référencer
 
-        duration = recording.get("duration_seconds")
-        if duration:
-            meeting.duration_sec = int(duration)
-
         transcription = Transcription(
             meeting_id    = meeting.id,
             audio_file_id = audio_file.id,
@@ -224,7 +306,7 @@ async def ingest_vexa_recording(meeting_id: UUID, vexa_meeting_id: int) -> None:
         db.refresh(transcription)
 
         logger.info(
-            "Audio Vexa ingere - meeting=%s taille=%d octets, transcription=%s",
+            "Audio Vexa ingere - reunion=%s taille=%d octets, transcription=%s",
             meeting.id, len(content), transcription.id,
         )
 
