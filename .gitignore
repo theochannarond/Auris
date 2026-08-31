@@ -39,3 +39,6 @@ backend/test.db
 frontend/playwright-report/
 frontend/test-results/
 frontend/blob-report/
+# Support de révision de la soutenance RNCP : notes personnelles d'Enzo,
+# sans rapport avec le code livré. Reste en local, jamais poussé.
+RNCP.md
