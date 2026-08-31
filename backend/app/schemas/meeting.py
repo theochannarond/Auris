@@ -88,6 +88,11 @@ class MeetingStatusResponse(BaseModel):
     """Réponse allégée pour le polling de statut côté React."""
     id:     UUID
     status: str
+    # "failed" recouvre deux causes très différentes : un bot qui n'est jamais
+    # entré, et une réunion enregistrée dont personne n'a rien dit. Seul
+    # started_at les distingue — il n'est renseigné qu'à l'entrée du bot.
+    # Sans lui, l'interface annonçait un échec de connexion dans les deux cas.
+    started_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

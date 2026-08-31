@@ -5,10 +5,14 @@ import { apiFetch } from "../services/api";
 interface MeetingStatus {
   id: string;
   status: string;
+  started_at: string | null;
 }
 
 export function useMeetingStatus(meetingId: string | null, pollingInterval = 3000) {
   const [status, setStatus] = useState<string | null>(null);
+  // Renseigné uniquement quand le bot est entré dans la réunion. C'est ce qui
+  // permet de distinguer un échec de connexion d'une réunion sans parole.
+  const [startedAt, setStartedAt] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -21,6 +25,7 @@ export function useMeetingStatus(meetingId: string | null, pollingInterval = 300
         if (!res.ok) throw new Error("Erreur récupération statut");
         const data: MeetingStatus = await res.json();
         setStatus(data.status);
+        setStartedAt(data.started_at ?? null);
 
         // Arrêter le polling seulement sur un statut VRAIMENT final.
         // "recording" et "processing" figuraient ici : le suivi s'arrêtait dès
@@ -50,5 +55,5 @@ export function useMeetingStatus(meetingId: string | null, pollingInterval = 300
     };
   }, [meetingId, pollingInterval]);
 
-  return { status, error };
+  return { status, startedAt, error };
 }

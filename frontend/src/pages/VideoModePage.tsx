@@ -15,7 +15,7 @@ export default function VideoModePage() {
   const [loading, setLoading]         = useState(false);
   const [stopping, setStopping]       = useState(false);
   const [error, setError]             = useState("");
-  const { status }                    = useMeetingStatus(meeting?.id ?? null);
+  const { status, startedAt }         = useMeetingStatus(meeting?.id ?? null);
 
   // Le bot ne quitte pas la réunion quand l'utilisateur la quitte : il reste
   // seul dans la salle. Sans ce bouton, le seul moyen de l'arrêter était de le
@@ -127,7 +127,9 @@ export default function VideoModePage() {
           )}
           {status === "failed" && (
             <p className="text-lg text-[#B91C1C] mb-2 font-medium">
-              ✗ La réunion n'a pas pu être traitée
+              {startedAt
+                ? "✗ Aucun compte rendu n'a pu être produit"
+                : "✗ La réunion n'a pas pu être traitée"}
             </p>
           )}
 
@@ -158,7 +160,7 @@ export default function VideoModePage() {
         </div>
       )}
 
-      {meeting && <BotStatusNotification status={status} />}
+      {meeting && <BotStatusNotification status={status} startedAt={startedAt} />}
     </div>
   );
 }
