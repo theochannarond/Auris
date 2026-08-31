@@ -375,9 +375,19 @@ async def stop_video_meeting(
         # cliqué deux fois ou le webhook est arrivé entre-temps.
         return meeting
 
+    # Sans plateforme connue, on ne peut pas construire l'URL d'arrêt. Un repli
+    # sur "google_meet" enverrait le DELETE sur la mauvaise plateforme pour une
+    # réunion Zoom ou Teams : Vexa répondrait qu'il ne connaît pas ce bot, et
+    # l'utilisateur verrait un échec sans rapport avec la cause réelle.
+    if not meeting.vexa_platform:
+        raise HTTPException(
+            status_code=409,
+            detail="Plateforme du bot inconnue : impossible de l'arrêter automatiquement."
+        )
+
     try:
         await vexa_service.stop_bot(
-            platform          = meeting.vexa_platform or "google_meet",
+            platform          = meeting.vexa_platform,
             native_meeting_id = meeting.vexa_native_id,
         )
     except vexa_service.VexaError as e:

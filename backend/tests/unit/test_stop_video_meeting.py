@@ -48,6 +48,35 @@ def test_arret_du_bot_reussi(client, reunion_video, db):
     assert reunion_video.ended_at is not None
 
 
+def test_arret_du_bot_zoom(client, reunion_video, db):
+    """
+    L'arrêt doit viser la plateforme réellement utilisée. La route se repliait
+    autrefois sur "google_meet" quand la colonne était vide, ce qui envoyait le
+    DELETE au mauvais endroit dès qu'une réunion n'était pas un Meet.
+    """
+    reunion_video.vexa_platform  = "zoom"
+    reunion_video.vexa_native_id = "79337496630"
+    db.commit()
+
+    with patch.object(vexa_service, "stop_bot", new=AsyncMock(return_value={"status": "stopping"})) as stop:
+        res = client.post(f"/api/v1/meetings/{reunion_video.id}/stop")
+
+    assert res.status_code == 200
+    stop.assert_awaited_once_with(platform="zoom", native_meeting_id="79337496630")
+
+
+def test_plateforme_inconnue_refusee(client, reunion_video, db):
+    """Sans plateforme, on refuse explicitement plutôt que de deviner."""
+    reunion_video.vexa_platform = None
+    db.commit()
+
+    with patch.object(vexa_service, "stop_bot", new=AsyncMock()) as stop:
+        res = client.post(f"/api/v1/meetings/{reunion_video.id}/stop")
+
+    assert res.status_code == 409
+    stop.assert_not_awaited()
+
+
 def test_reunion_dictaphone_refusee(client, test_meeting, db):
     test_meeting.mode = "dictaphone"
     db.commit()

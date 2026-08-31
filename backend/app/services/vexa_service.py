@@ -8,6 +8,7 @@ Contrat vérifié le 30 août 2026 contre l'API réelle (compte de production) :
     Authentification en-tête "X-API-Key" — surtout PAS "Authorization: Bearer",
                     qui renvoie 401 {"detail": "Missing API key"}
     Lancer un bot   POST /bots  {platform, native_meeting_id, bot_name}
+                    + meeting_url pour zoom et jitsi (voir plus bas)
     Arrêter un bot  DELETE /bots/{platform}/{native_meeting_id}
     Enregistrements GET /recordings
                     GET /recordings/{id}/master              → media_file_id
@@ -16,6 +17,18 @@ Contrat vérifié le 30 août 2026 contre l'API réelle (compte de production) :
 La version précédente visait "https://api.vexa.ai/v1/bots" avec un jeton
 Bearer : ce domaine n'existe pas (curl renvoie 000) et l'en-tête est le mauvais.
 Le mode vidéo n'a donc jamais pu fonctionner, quelle que soit la clé.
+
+Complément vérifié le 31 août 2026, réunion Zoom réelle : Vexa refuse un bot
+Zoom lancé sans "meeting_url" —
+
+    "unsupported platform 'zoom' without a meeting_url —
+     use google_meet/teams, or provide meeting_url (required for zoom/jitsi)"
+
+C'est logique : un code Meet ("hid-ggwt-sft") suffit à reconstruire l'URL
+d'entrée, alors qu'une réunion Zoom exige en plus un code d'accès, transporté
+par le paramètre "?pwd=" du lien d'invitation. L'identifiant numérique seul ne
+permet donc pas d'entrer. Le lien complet est déjà stocké dans
+Meeting.meeting_link : il n'y a rien de plus à demander à l'utilisateur.
 """
 
 import httpx
@@ -31,11 +44,23 @@ VEXA_API_URL = "https://api.cloud.vexa.ai"
 # Vexa identifie une réunion par une plateforme et un identifiant natif, jamais
 # par une URL complète : "https://meet.google.com/ora-scow-epu" doit devenir
 # ("google_meet", "ora-scow-epu").
+#
+# Zoom accepte deux formes : le lien d'invitation "zoom.us/j/<id>?pwd=..." — le
+# seul que nous documentions — et l'URL du client web "app.zoom.us/wc/<id>/..."
+# qu'affiche la barre d'adresse une fois dans la réunion. La seconde est
+# reconnue pour ne pas rejeter un lien qu'un utilisateur aura simplement copié
+# depuis son navigateur. Le sous-domaine régional (us04web, us05web…) est sans
+# importance : la recherche porte sur une sous-chaîne.
 _MEETING_PATTERNS = (
     (re.compile(r"meet\.google\.com/([a-z]{3}-[a-z]{4}-[a-z]{3})", re.I), "google_meet"),
     (re.compile(r"teams\.(?:microsoft|live)\.com/.*?/(\d{10,})",   re.I), "teams"),
     (re.compile(r"zoom\.us/j/(\d+)",                               re.I), "zoom"),
+    (re.compile(r"zoom\.us/wc/(\d+)",                              re.I), "zoom"),
 )
+
+# Plateformes pour lesquelles Vexa exige le lien complet en plus de
+# l'identifiant : sans lui, la demande est rejetée d'emblée.
+PLATFORMS_REQUIRING_URL = frozenset({"zoom", "jitsi"})
 
 BOT_NAME = "Auris Assistant"
 REQUEST_TIMEOUT_SEC = 30.0
@@ -89,6 +114,13 @@ async def spawn_bot(meeting_link: str) -> dict:
         "native_meeting_id": native_meeting_id,
         "bot_name":          BOT_NAME,
     }
+
+    # Zoom et Jitsi : le lien complet porte le code d'accès, que l'identifiant
+    # numérique ne contient pas. On l'envoie tel quel plutôt que d'extraire le
+    # "pwd" nous-mêmes — Vexa sait le lire, et un lien intact vieillit mieux
+    # qu'un paramètre que nous aurions recopié.
+    if platform in PLATFORMS_REQUIRING_URL:
+        payload["meeting_url"] = meeting_link
 
     try:
         async with httpx.AsyncClient() as client:
