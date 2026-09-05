@@ -16,6 +16,10 @@ interface SummaryStatus {
 export function useSummaryStatus(summaryId: string | null, pollingInterval = 3000) {
   const [summary, setSummary] = useState<SummaryStatus | null>(null);
   const [error, setError] = useState<string>("");
+  // Une génération qui échoue laisse le résumé écarté côté serveur : la route
+  // répond alors 404. Sans cet état, le suivi tournait indéfiniment et la barre
+  // de progression ne s'arrêtait jamais.
+  const [failed, setFailed] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -23,6 +27,7 @@ export function useSummaryStatus(summaryId: string | null, pollingInterval = 300
 
     setSummary(null);
     setError("");
+    setFailed(false);
 
     const stopPolling = () => {
       if (intervalRef.current) {
@@ -34,7 +39,18 @@ export function useSummaryStatus(summaryId: string | null, pollingInterval = 300
     const fetchStatus = async () => {
       try {
         const res = await apiFetch(`/api/v1/summaries/${summaryId}`);
+
+        // 404 : le serveur a abandonné cette génération. C'est définitif,
+        // inutile de continuer à interroger.
+        if (res.status === 404) {
+          setFailed(true);
+          stopPolling();
+          return;
+        }
+        // Autre erreur : probablement passagère, la prochaine tentative
+        // rattrapera dans 3 secondes.
         if (!res.ok) throw new Error("Erreur récupération résumé");
+
         const data: SummaryStatus = await res.json();
         setSummary(data);
 
@@ -52,5 +68,5 @@ export function useSummaryStatus(summaryId: string | null, pollingInterval = 300
     return stopPolling;
   }, [summaryId, pollingInterval]);
 
-  return { summary, error };
+  return { summary, error, failed };
 }

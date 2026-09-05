@@ -7,12 +7,36 @@ from app.models.meeting import Meeting
 from app.models.transcription import Transcription
 from app.models.summary import Summary
 from app.schemas.summary import SummaryCreate, SummaryResponse
-from app.services.mistral_service import generate_summary, MistralSummaryError
+from app.services.mistral_service import generate_summary_with_backoff, MistralSummaryError
+from datetime import datetime
+import logging
 from uuid import UUID
 
 router = APIRouter(prefix="/api/v1", tags=["summaries"])
+logger = logging.getLogger(__name__)
 
 ACTIVE_STATUSES = ("pending", "processing", "completed")
+
+
+def _abandonner(db, summary, motif: str):
+    """
+    Écarte un résumé qui n'a pas abouti.
+
+    La ligne est créée AVANT l'appel à Mistral : un échec y laissait donc un
+    enregistrement inutilisable. L'ancienne version écrivait le message
+    d'erreur dans `content` — deux conséquences fâcheuses : l'utilisateur
+    voyait la réponse brute de Mistral affichée comme si c'était son
+    compte rendu, et la ligne, n'étant plus vide, passait pour un résumé
+    valide. La réunion devenait alors définitivement ingénérable : chaque
+    nouveau clic renvoyait cette ligne sans jamais relancer Mistral.
+
+    On la marque donc supprimée. Elle disparaît des lectures, la réunion
+    redevient générable, et l'erreur reste dans les logs pour le diagnostic.
+    """
+    summary.deleted_at = datetime.utcnow()
+    db.commit()
+    logger.warning("Resume %s abandonne : %s", summary.id, motif)
+
 
 async def run_summary(summary_id: UUID, transcription_text: str):
     """
@@ -25,15 +49,12 @@ async def run_summary(summary_id: UUID, transcription_text: str):
             return
 
         try:
-            result = await generate_summary(transcription_text)
+            result = await generate_summary_with_backoff(transcription_text)
         except MistralSummaryError as e:
-            summary.content      = f"Erreur : {str(e)}"
-            summary.processing_ms = e.processing_ms
-            db.commit()
+            _abandonner(db, summary, str(e))
             return
         except Exception as e:
-            summary.content = f"Erreur inattendue : {str(e)}"
-            db.commit()
+            _abandonner(db, summary, "erreur inattendue : %s" % e)
             return
 
         summary.content       = result["content"]
@@ -92,20 +113,30 @@ async def create_summary(
             detail="Aucune transcription complète trouvée pour cette réunion"
         )
 
-    # Idempotence
+    # Idempotence : on ne renvoie l'existant que s'il a REELLEMENT abouti.
+    # Se contenter de vérifier qu'une ligne existe verrouillait la réunion, la
+    # ligne étant créée avant l'appel à Mistral.
     existing = db.query(Summary).filter(
         Summary.meeting_id == meeting.id,
         Summary.deleted_at == None
     ).order_by(Summary.created_at.desc()).first()
-    if existing:
+
+    if existing and existing.content.strip():
         return existing
 
-    summary = Summary(
-        meeting_id       = meeting.id,
-        transcription_id = transcription.id,
-        content          = ""
-    )
-    db.add(summary)
+    if existing:
+        # Tentative précédente restée vide : on réutilise la ligne plutôt que
+        # d'en empiler une nouvelle à chaque essai.
+        summary = existing
+        summary.transcription_id = transcription.id
+    else:
+        summary = Summary(
+            meeting_id       = meeting.id,
+            transcription_id = transcription.id,
+            content          = ""
+        )
+        db.add(summary)
+
     db.commit()
     db.refresh(summary)
 

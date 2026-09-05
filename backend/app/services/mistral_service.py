@@ -1,6 +1,7 @@
 import httpx
 import time
 import json
+import asyncio
 from typing import Optional
 from app.core.database import settings
 
@@ -12,8 +13,9 @@ class MistralSummaryError(Exception):
 
 async def generate_summary(transcription_text: str) -> dict:
     """
-    Envoie la transcription à Mistral Small 4 et retourne un résumé structuré.
-    Retourne un dict : {"content", "decisions", "action_items", "tone", "theme", 
+    Envoie la transcription à Mistral (mistral-small-latest) et retourne un
+    résumé structuré.
+    Retourne un dict : {"content", "decisions", "action_items", "tone", "theme",
                         "tokens_used", "processing_ms"}.
     Lève MistralSummaryError en cas d'échec.
     """
@@ -100,3 +102,38 @@ TRANSCRIPTION :
         "tokens_used":  payload.get("usage", {}).get("total_tokens"),
         "processing_ms": processing_ms
     }
+
+
+async def generate_summary_with_backoff(
+    transcription_text: str,
+    max_retries:        Optional[int] = None
+) -> dict:
+    """
+    Comme generate_summary, mais réessaie en cas d'échec transitoire, avec un
+    délai exponentiel entre les tentatives (1s, 2s, 4s...).
+
+    Le cas visé en premier est le 429 « Rate limit exceeded ». Transcription et
+    résumé passent par la MÊME clé et le MÊME hôte (api.mistral.ai) : Voxtral
+    et le résumé puisent donc dans le même quota de débit. Générer un résumé
+    juste après une transcription suffit à le dépasser, et un seul appel sans
+    filet échouait définitivement.
+
+    Aucun réessai sur les erreurs définitives — clé absente, transcription
+    vide, résumé vide : elles échoueront pareil à chaque tentative.
+
+    Symétrique de transcribe_audio_with_backoff, côté Voxtral.
+    """
+    retries = max_retries if max_retries is not None else settings.MAX_RETRY_COUNT
+    last_error: Optional[MistralSummaryError] = None
+
+    for attempt in range(retries + 1):
+        try:
+            return await generate_summary(transcription_text)
+        except MistralSummaryError as e:
+            last_error = e
+            is_definitive = "manquante" in str(e) or "vide" in str(e)
+            if is_definitive or attempt >= retries:
+                raise
+            await asyncio.sleep(2 ** attempt)
+
+    raise last_error

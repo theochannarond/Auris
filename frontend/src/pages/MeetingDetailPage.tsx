@@ -34,13 +34,25 @@ export default function MeetingDetailPage() {
   const [summaryId, setSummaryId]       = useState<string | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryError, setSummaryError]  = useState("");
-  const { summary: polledSummary }       = useSummaryStatus(summaryId);
+  const { summary: polledSummary, failed: summaryFailed } = useSummaryStatus(summaryId);
 
   useEffect(() => {
     if (polledSummary && polledSummary.content.trim() !== "") {
       setIsSummarizing(false);
     }
   }, [polledSummary]);
+
+  // La génération a échoué côté serveur. On arrête l'attente et on l'explique,
+  // au lieu de laisser tourner une barre de progression sans fin.
+  useEffect(() => {
+    if (summaryFailed) {
+      setIsSummarizing(false);
+      setSummaryError(
+        "La génération du compte-rendu n'a pas abouti. Le service d'IA est momentanément " +
+        "surchargé — réessayez dans une minute."
+      );
+    }
+  }, [summaryFailed]);
 
   const handleGenerateSummary = async () => {
     if (!meeting) return;
